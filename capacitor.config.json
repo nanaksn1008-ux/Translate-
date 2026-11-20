@@ -1,0 +1,6 @@
+{
+  "appId": "com.renpy.translator",
+  "appName": "Renpy Translator",
+  "webDir": "www",
+  "plugins": { "CapacitorHttp": { "enabled": true } }
+}
