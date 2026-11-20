@@ -169,10 +169,13 @@ function zip(ents){const te=new TextEncoder(),parts=[],cd=[];let off=0;
  return new Blob([...parts,...cd,end],{type:"application/zip"})}
 const b64=async bl=>{const u=new Uint8Array(await bl.arrayBuffer());let r="";for(let i=0;i<u.length;i+=8192)r+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(r)};
 $("dl").onclick=async()=>{const ents=[];files.forEach(f=>{const n=f.name.replace(/[^\w.\/-]/g,"_");ents.push({name:"terjemahan_gabungan/"+n,data:merged(f)},{name:"asli/"+n,data:f.lines.join("\n")})});
- const bl=zip(ents),P=window.Capacitor&&Capacitor.Plugins;
- try{if(P&&P.Filesystem&&P.Share){const w=await P.Filesystem.writeFile({path:"renpy-terjemahan.zip",data:await b64(bl),directory:"CACHE"});
-   await P.Share.share({title:"Terjemahan Ren'Py",url:w.uri,dialogTitle:"Simpan / bagikan ZIP"});msg("ZIP siap: pilih 'Simpan ke File/Drive' pada menu yang muncul.")}
-  else{const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download="renpy-terjemahan.zip";a.click();msg("ZIP diunduh.")}}
+ const bl=zip(ents),C=window.Capacitor,d=new Date(),p=n=>String(n).padStart(2,"0"),fn=`renpy-terjemahan-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.zip`;
+ let done="";
+ try{if(C&&C.isNativePlatform&&C.isNativePlatform()){
+   try{const r=await C.registerPlugin("DownloadSaver").save({filename:fn,folder:"renpy translate",data:await b64(bl)});done="Tersimpan di "+r.path}
+   catch(e){const P=C.Plugins,w=await P.Filesystem.writeFile({path:fn,data:await b64(bl),directory:"CACHE"});await P.Share.share({title:"Terjemahan Ren'Py",url:w.uri,dialogTitle:"Simpan ZIP"});done="ZIP dibagikan (penyimpanan langsung gagal: "+(e.message||e)+")"}}
+  else{const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download=fn;a.click();done="ZIP diunduh: "+fn}
+  files=[];render();$("pb").style.width="0";msg("✅ "+done+". Siap mulai dari awal.")}
  catch(e){msg("Gagal menyimpan: "+(e.message||e))}};
 /* ---- input ---- */
 const dr=$("drop");dr.onclick=()=>$("fin").click();$("fin").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};
