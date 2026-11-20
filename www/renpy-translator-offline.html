@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Penerjemah Script Ren’Py</title>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#f3f1ec;--surface:#fffefb;--ink:#1d2320;--muted:#5e6a64;--line:#d6d2c8;
+  --accent:#1f6f5c;--accent-ink:#fff;--warn:#b3361f;--warn-bg:#fbe9e4;--ok:#1f6f5c;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#14191a;--surface:#1d2426;--ink:#e8ece9;--muted:#98a6a0;--line:#33403f;
+    --accent:#59c4a6;--accent-ink:#0b1714;--warn:#ff8f78;--warn-bg:#3a201b;--ok:#59c4a6;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#14191a;--surface:#1d2426;--ink:#e8ece9;--muted:#98a6a0;--line:#33403f;
+  --accent:#59c4a6;--accent-ink:#0b1714;--warn:#ff8f78;--warn-bg:#3a201b;--ok:#59c4a6;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px 14px 64px}
+h1{font-size:1.45rem;margin:4px 0 2px;letter-spacing:-.01em}
+p.sub{margin:0 0 16px;color:var(--muted);font-size:.92rem}
+section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+h2{font-size:1rem;margin:0 0 10px}
+label{display:block;font-size:.85rem;color:var(--muted);margin:8px 0 4px}
+textarea,input[type=text],select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+textarea{resize:vertical;min-height:70px}
+textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 13px;border-radius:8px;cursor:pointer}
+button.main{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.5}
+.stat{font-size:.9rem;color:var(--muted)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;width:0;background:var(--accent)}
+.card{border-top:1px solid var(--line);padding:12px 0}
+.card:first-child{border-top:0}
+.meta{font-size:.78rem;color:var(--muted)}
+.orig{margin:2px 0 6px;white-space:pre-wrap;word-break:break-word}
+.card.warn textarea{border-color:var(--warn);background:var(--warn-bg)}
+.note{font-size:.8rem;color:var(--warn);margin-top:3px}
+.pager{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px}
+.msg{font-size:.88rem;margin-top:8px;color:var(--ok)}
+.msg.err{color:var(--warn)}
+.scroll{overflow-x:auto}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1>Penerjemah script Ren’Py</h1>
+<p class="sub">Muat file .rpy, terjemahkan dialog dan pilihan menu, lalu ekspor hasilnya.</p>
+
+<section>
+  <h2>1. Muat script</h2>
+  <div class="row">
+    <input id="file" type="file" accept=".rpy,.txt" hidden>
+    <button class="main" id="pick">Pilih file .rpy</button>
+    <span class="stat" id="fname">belum ada file</span>
+  </div>
+  <label for="paste">Atau tempel isi script di sini</label>
+  <textarea id="paste" placeholder="label start:&#10;    e &quot;Hello!&quot;"></textarea>
+  <div class="row" style="margin-top:8px"><button id="parse">Ambil teks dialog</button></div>
+  <div class="msg" id="loadmsg" hidden></div>
+</section>
+
+<section id="work" hidden>
+  <h2>2. Terjemahkan</h2>
+  <div class="stat" id="stat"></div>
+  <div class="bar"><i id="prog"></i></div>
+  <div class="row">
+    <select id="filter" style="width:auto">
+      <option value="all">Semua</option>
+      <option value="todo">Belum diterjemahkan</option>
+      <option value="warn">Tag tidak cocok</option>
+    </select>
+    <button id="copyAll">Salin teks asli</button>
+    <button id="pasteAll">Tempel hasil</button>
+  </div>
+  <div id="autobox">
+    <label for="tlang">Bahasa tujuan (kode, contoh: id = Indonesia)</label>
+    <input type="text" id="tlang" value="id">
+    <div class="row" style="margin-top:8px">
+      <button class="main" id="auto">Terjemahkan otomatis</button>
+      <button id="stop" hidden>Hentikan</button>
+    </div>
+    <div class="stat" id="autostat"></div>
+  </div>
+  <div id="bulk" hidden>
+    <label for="bulkTxt">Tempel hasil terjemahan, satu baris per teks, urutan sama dengan yang disalin</label>
+    <textarea id="bulkTxt" style="min-height:120px"></textarea>
+    <div class="row" style="margin-top:8px"><button class="main" id="applyBulk">Terapkan</button><button id="cancelBulk">Batal</button></div>
+  </div>
+  <div class="msg" id="workmsg" hidden></div>
+  <div id="list"></div>
+  <div class="pager">
+    <button id="prev">Sebelumnya</button><span class="stat" id="pageinfo"></span><button id="next">Berikutnya</button>
+  </div>
+</section>
+
+<section id="out" hidden>
+  <h2>3. Ekspor</h2>
+  <label for="mode">Format hasil</label>
+  <select id="mode">
+    <option value="inplace">Ganti langsung di script (file asli diubah)</option>
+    <option value="strings">Blok translate strings (folder game/tl)</option>
+  </select>
+  <div id="langbox" hidden>
+    <label for="lang">Nama bahasa</label>
+    <input type="text" id="lang" value="indonesian">
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button class="main" id="gen">Buat hasil</button>
+    <button id="copy">Salin</button>
+    <button id="dl">Unduh .rpy</button>
+  </div>
+  <label for="result">Hasil</label>
+  <textarea id="result" style="min-height:160px" readonly></textarea>
+  <div class="msg" id="outmsg" hidden></div>
+</section>
+</main>
+
+<script>
+(function(){
+var lines=[],items=[],fname="script.rpy",page=0,PS=40;
+var $=function(id){return document.getElementById(id)};
+var SKIP=/^(define|default|image|label|python|init|transform|screen|style|play|stop|queue|scene|show|hide|if|elif|else|while|for|return|jump|call|with|pause|window|import|from|class|def|translate|old|new|renpy|config|gui|voice|nvl|camera|layeredimage|at|use|key|add|bar|frame|vbox|hbox|fixed|textbutton|text|action|id|\$|#)(\b|\s|$)/;
+var LIT=/^(\s*)((?:[A-Za-z_][\w.]*)(?:\s+@?[A-Za-z_][\w]*)*\s+)?(_\()?("(?:[^"\\]|\\.)*")/;
+var REST=/^\)?\s*(if\s.*:|:|with\s.*|\(.*\)|)\s*(#.*)?$/;
+var FILEY=/\.(png|jpe?g|webp|gif|ogg|mp3|wav|opus|webm|mp4|ttf|otf|rpy|rpyc)$/i;
+
+function tags(t){return (t.match(/\{[^}]*\}|\[[^\]]*\]|%\([^)]*\)s/g)||[]).sort().join("|")}
+function esc(t){return t.replace(/\\?"/g,function(m){return m==='"'?'\\"':m}).replace(/\r?\n/g,"\\n")}
+function bad(it){return it.tr.trim()!==""&&tags(it.orig)!==tags(it.tr)}
+function show(id,txt,err){var e=$(id);e.hidden=false;e.textContent=txt;e.className="msg"+(err?" err":"")}
+
+function parse(text){
+  lines=text.split(/\r?\n/);items=[];
+  lines.forEach(function(ln,i){
+    var t=ln.trim();
+    if(!t||SKIP.test(t))return;
+    var m=LIT.exec(ln);
+    if(!m)return;
+    var lit=m[4],start=m[1].length+(m[2]?m[2].length:0)+(m[3]?m[3].length:0);
+    var rest=ln.slice(start+lit.length);
+    if(!REST.test(rest))return;
+    var o=lit.slice(1,-1);
+    if(!/[A-Za-z]/.test(o)||FILEY.test(o.trim()))return;
+    items.push({line:i,s:start,e:start+lit.length,orig:o,tr:""});
+  });
+  page=0;
+  if(!items.length){show("loadmsg","Tidak ada teks dialog yang ditemukan. Pastikan isinya script .rpy biasa.",true);$("work").hidden=true;$("out").hidden=true;return}
+  show("loadmsg","Ditemukan "+items.length+" teks dari "+lines.length+" baris.");
+  $("work").hidden=false;$("out").hidden=false;render();
+}
+
+function filtered(){
+  var f=$("filter").value;
+  return items.filter(function(it){return f==="all"||(f==="todo"&&!it.tr.trim())||(f==="warn"&&bad(it))});
+}
+
+function stats(){
+  var d=items.filter(function(it){return it.tr.trim()}).length;
+  $("stat").textContent=d+" dari "+items.length+" teks sudah diterjemahkan";
+  $("prog").style.width=(items.length?d/items.length*100:0)+"%";
+}
+
+function render(){
+  var list=filtered(),pages=Math.max(1,Math.ceil(list.length/PS));
+  if(page>=pages)page=pages-1;
+  var box=$("list");box.textContent="";
+  list.slice(page*PS,page*PS+PS).forEach(function(it){
+    var c=document.createElement("div");c.className="card"+(bad(it)?" warn":"");
+    var m=document.createElement("div");m.className="meta";m.textContent="baris "+(it.line+1);
+    var o=document.createElement("div");o.className="orig";o.textContent=it.orig;
+    var ta=document.createElement("textarea");ta.value=it.tr;ta.rows=2;ta.setAttribute("aria-label","Terjemahan baris "+(it.line+1));
+    var n=document.createElement("div");n.className="note";n.textContent="Tag {…} atau [...] berbeda dari teks asli.";n.hidden=!bad(it);
+    ta.addEventListener("input",function(){it.tr=ta.value;var b=bad(it);c.classList.toggle("warn",b);n.hidden=!b;stats()});
+    c.appendChild(m);c.appendChild(o);c.appendChild(ta);c.appendChild(n);box.appendChild(c);
+  });
+  $("pageinfo").textContent="Halaman "+(page+1)+" dari "+pages;
+  $("prev").disabled=page===0;$("next").disabled=page>=pages-1;
+  stats();
+}
+
+function copyText(txt,id){
+  function fallback(){
+    var ta=document.createElement("textarea");ta.value=txt;ta.style.position="fixed";ta.style.opacity="0";
+    document.body.appendChild(ta);ta.select();var ok=false;
+    try{ok=document.execCommand("copy")}catch(e){}
+    document.body.removeChild(ta);
+    show(id,ok?"Tersalin ke papan klip.":"Gagal menyalin. Pilih teks lalu salin manual.",!ok);
+  }
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(function(){show(id,"Tersalin ke papan klip.")},fallback);
+    }else fallback();
+  }catch(e){fallback()}
+}
+
+function build(){
+  var mode=$("mode").value,out="";
+  if(mode==="inplace"){
+    var copy=lines.slice();
+    items.forEach(function(it){
+      if(!it.tr.trim())return;
+      var ln=copy[it.line];
+      copy[it.line]=ln.slice(0,it.s)+'"'+esc(it.tr)+'"'+ln.slice(it.e);
+    });
+    out=copy.join("\n");
+  }else{
+    var seen={},lang=$("lang").value.trim()||"indonesian";
+    out="translate "+lang+" strings:\n\n";
+    items.forEach(function(it){
+      if(!it.tr.trim()||seen[it.orig])return;seen[it.orig]=1;
+      out+='    old "'+it.orig+'"\n    new "'+esc(it.tr)+'"\n\n';
+    });
+  }
+  $("result").value=out;
+  var d=items.filter(function(it){return it.tr.trim()}).length;
+  show("outmsg","Hasil dibuat dari "+d+" teks yang sudah diterjemahkan.");
+  return out;
+}
+
+function loadFile(f){
+  var r=new FileReader();
+  r.onload=function(){fname=f.name.replace(/(\.rpy)\.txt$/i,"$1");$("fname").textContent=f.name;$("paste").value=r.result;parse(r.result)};
+  r.onerror=function(){show("loadmsg","File tidak bisa dibaca.",true)};
+  r.readAsText(f,"utf-8");
+}
+
+$("pick").addEventListener("click",function(){$("file").click()});
+$("file").addEventListener("change",function(){if(this.files[0])loadFile(this.files[0])});
+$("parse").addEventListener("click",function(){var t=$("paste").value;if(!t.trim()){show("loadmsg","Tempel isi script dulu atau pilih file.",true);return}parse(t)});
+$("filter").addEventListener("change",function(){page=0;render()});
+$("prev").addEventListener("click",function(){page--;render();window.scrollTo(0,$("work").offsetTop)});
+$("next").addEventListener("click",function(){page++;render();window.scrollTo(0,$("work").offsetTop)});
+$("copyAll").addEventListener("click",function(){
+  var todo=items.filter(function(it){return !it.tr.trim()});
+  if(!todo.length){show("workmsg","Semua teks sudah diterjemahkan.");return}
+  copyText(todo.map(function(it){return it.orig.replace(/\n/g," ")}).join("\n"),"workmsg");
+  $("workmsg").textContent+=" "+todo.length+" teks, satu per baris. Terjemahkan, lalu tempel hasilnya.";
+});
+$("pasteAll").addEventListener("click",function(){$("bulk").hidden=false;$("bulkTxt").focus()});
+$("cancelBulk").addEventListener("click",function(){$("bulk").hidden=true});
+$("applyBulk").addEventListener("click",function(){
+  var res=$("bulkTxt").value.replace(/\r/g,"").split("\n");
+  while(res.length&&!res[res.length-1].trim())res.pop();
+  var todo=items.filter(function(it){return !it.tr.trim()});
+  if(res.length!==todo.length){show("workmsg","Jumlah baris ("+res.length+") berbeda dari jumlah teks yang belum diterjemahkan ("+todo.length+"). Periksa hasil terjemahan.",true);return}
+  todo.forEach(function(it,i){it.tr=res[i].trim()});
+  $("bulkTxt").value="";$("bulk").hidden=true;
+  show("workmsg",res.length+" terjemahan diterapkan.");render();
+});
+$("mode").addEventListener("change",function(){$("langbox").hidden=this.value!=="strings"});
+$("gen").addEventListener("click",build);
+$("copy").addEventListener("click",function(){var t=$("result").value||build();copyText(t,"outmsg")});
+var stopFlag=false,ctl=null;
+$("dl").addEventListener("click",function(){
+  var t=$("result").value||build();
+  var name=$("mode").value==="strings"?"strings_"+($("lang").value.trim()||"indonesian")+".rpy":fname;
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([t],{type:"application/octet-stream"}));
+  a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);
+  show("outmsg","Diunduh sebagai "+name);
+});
+function protect(s){var m=[];var p=s.replace(/\{[^}]*\}|\[[^\]]*\]|%\([^)]*\)s|\\n|\\"/g,function(x){m.push(x);return "QZ"+(m.length-1)+"QZ"});return {p:p,m:m}}
+function restore(s,m){return s.replace(/QZ\s*(\d+)\s*QZ/gi,function(_,i){return m[+i]!==undefined?m[+i]:""}).trim()}
+var provs=[
+async function(t,tl,sg){var r=await fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl="+encodeURIComponent(tl)+"&dt=t&q="+encodeURIComponent(t),{signal:sg});if(!r.ok)throw new Error("g"+r.status);var j=await r.json();return j[0].map(function(x){return x[0]}).join("")},
+async function(t,tl,sg){var parts=t.match(/[^.!?]+[.!?]*\s*/g)||[t],list=[],cur="",out="";parts.forEach(function(p){if((cur+p).length>400&&cur){list.push(cur);cur=p}else cur+=p});if(cur)list.push(cur);for(var k=0;k<list.length;k++){var r=await fetch("https://api.mymemory.translated.net/get?q="+encodeURIComponent(list[k])+"&langpair=Autodetect|"+encodeURIComponent(tl),{signal:sg});if(!r.ok)throw new Error("m"+r.status);var j=await r.json();if(!j.responseData||j.responseStatus!=200)throw new Error("m");out+=j.responseData.translatedText}return out},
+async function(t,tl,sg){var r=await fetch("https://lingva.ml/api/v1/auto/"+encodeURIComponent(tl)+"/"+encodeURIComponent(t),{signal:sg});if(!r.ok)throw new Error("l"+r.status);var j=await r.json();if(!j.translation)throw new Error("l");return j.translation}
+],pv=0;
+async function gt(text,tl,signal){
+  for(var n=0;n<provs.length;n++){
+    var k=(pv+n)%provs.length;
+    try{var o=await provs[k](text,tl,signal);if(o&&o.trim()){pv=k;return o}}catch(e){if(signal&&signal.aborted)throw e}
+  }
+  throw new Error("Semua server terjemahan tidak bisa diakses dari browser ini");
+}
+$("stop").addEventListener("click",function(){stopFlag=true;if(ctl)ctl.abort()});
+$("auto").addEventListener("click",async function(){
+  var todo=items.filter(function(it){return !it.tr.trim()});
+  if(!todo.length){show("workmsg","Semua teks sudah diterjemahkan.");return}
+  var tl=$("tlang").value.trim()||"id",done=0,idx=0,err=null;
+  stopFlag=false;ctl=new AbortController();
+  $("auto").disabled=true;$("stop").hidden=false;$("workmsg").hidden=true;
+  async function worker(){
+    while(!stopFlag&&!err&&idx<todo.length){
+      var it=todo[idx++];
+      try{
+        var pr=protect(it.orig);
+        var out=await gt(pr.p,tl,ctl.signal);
+        it.tr=restore(out,pr.m);done++;
+        $("autostat").textContent="Menerjemahkan "+done+" dari "+todo.length+"…";
+        if(done%25===0)render();
+      }catch(e){if(!stopFlag)err=e}
+    }
+  }
+  await Promise.all([worker(),worker(),worker(),worker()]);
+  $("autostat").textContent="";
+  render();
+  if(stopFlag)show("workmsg","Dihentikan. "+done+" teks diterjemahkan.");
+  else if(err)show("workmsg","Berhenti di "+done+" teks: "+(err.message||"gagal terhubung")+". Cek koneksi internet lalu tekan tombol lagi, teks yang sudah selesai tidak diulang.",true);
+  else show("workmsg",done+" teks diterjemahkan. Periksa hasilnya, terutama baris yang bertanda merah.");
+  $("auto").disabled=false;$("stop").hidden=true;
+});
+})();
+</script>
+</body>
+</html>
