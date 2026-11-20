@@ -134,16 +134,23 @@ function render(){const n=files.reduce((a,f)=>a+f.items.length,0),d=files.reduce
  $("tbl").innerHTML=all.length?all.map(([a,b,x])=>`<div class="it"><div>${esc(x.t)}</div><textarea data-a="${a}" data-b="${b}">${esc(x.tr)}</textarea></div>`).join("")+(n>150?`<div class="it">…pratinjau 150 baris pertama per file; semuanya tetap diterjemahkan.</div>`:""):'<div class="it" style="color:var(--mu)">Belum ada teks.</div>'}
 $("tbl").oninput=e=>{const t=e.target;if(t.dataset.a)files[t.dataset.a].items[t.dataset.b].tr=t.value;$("dl").disabled=false};
 /* ---- terjemah otomatis ---- */
+const PV=[
+ async(q,l)=>{const r=await fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl="+l+"&dt=t&q="+encodeURIComponent(q));if(!r.ok)throw new Error("Google "+r.status);const j=await r.json();return j[0].map(x=>x[0]).join("")},
+ async(q,l)=>{const ps=q.match(/[^.!?]+[.!?]*\s*/g)||[q],ls=[];let c="";ps.forEach(p=>{if((c+p).length>400&&c){ls.push(c);c=p}else c+=p});if(c)ls.push(c);let o="";for(const x of ls){const r=await fetch("https://api.mymemory.translated.net/get?q="+encodeURIComponent(x)+"&langpair=Autodetect|"+l);if(!r.ok)throw new Error("MyMemory "+r.status);const j=await r.json();if(!j.responseData||j.responseStatus!=200)throw new Error("MyMemory "+j.responseStatus);o+=j.responseData.translatedText}return o},
+ async(q,l)=>{const r=await fetch("https://lingva.ml/api/v1/auto/"+l+"/"+encodeURIComponent(q));if(!r.ok)throw new Error("Lingva "+r.status);const j=await r.json();if(!j.translation)throw new Error("Lingva kosong");return j.translation}
+];let pv=0,lastErr="";
 const tr1=async(t,lang)=>{const ph=[];const q=t.replace(/\{[^}]*\}|\[[^\]]*\]|%%|\\n/g,m=>{ph.push(m);return "QX"+(ph.length-1)+"X"});
- const r=await fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl="+lang+"&dt=t&q="+encodeURIComponent(q));
- const j=await r.json();return j[0].map(x=>x[0]).join("").replace(/QX\s*(\d+)\s*X/gi,(m,n)=>ph[n]??m)};
+ let out=null;
+ for(let n=0;n<PV.length&&out===null;n++){const k=(pv+n)%PV.length;try{const o=await PV[k](q,lang);if(o&&o.trim()){out=o;pv=k}}catch(e){lastErr=(e&&e.message)||String(e)}}
+ if(out===null)throw new Error(lastErr||"gagal");
+ return out.replace(/QX\s*(\d+)\s*X/gi,(m,n)=>ph[n]??m)};
 $("go").onclick=async()=>{const todo=[];files.forEach(f=>f.items.forEach(x=>{if(!x.tr)todo.push(x)}));if(!todo.length)return;
  ctl=new AbortController();$("stop").disabled=false;$("go").disabled=true;const lang=$("lang").value;let n=0,fail=0,k=0;
  const worker=async()=>{while(k<todo.length&&!ctl.signal.aborted){const x=todo[k++];
   try{x.tr=(await tr1(x.t,lang)).replace(/\r?\n/g,"\\n").replace(/(^|[^\\])"/g,'$1\\"')}catch(e){fail++}
   n++;if(n%10===0){msg(`Menerjemahkan ${n}/${todo.length}…`);render()}}};
- await Promise.all([1,2,3,4,5].map(worker));
- msg(ctl.signal.aborted?"Dihentikan.":fail?`Selesai, ${fail} baris gagal (cek koneksi lalu ulangi).`:"Selesai ✅ Periksa hasilnya lalu unduh.");
+ await Promise.all([1,2,3].map(worker));
+ msg(ctl.signal.aborted?"Dihentikan.":fail?`Selesai, ${fail} baris gagal (${lastErr}). Cek koneksi lalu ulangi.`:"Selesai ✅ Periksa hasilnya lalu unduh.");
  ctl=null;$("stop").disabled=true;render()};
 $("stop").onclick=()=>ctl&&ctl.abort();
 /* ---- gabung & ZIP ---- */
