@@ -129,14 +129,17 @@ async function readRpa(buf){const u=new Uint8Array(buf);let e=u.indexOf(10);cons
   else others.push({name,bytes})}
  return {out,others,skipped}}
 /* ---- parsing .rpy ---- */
-const DLG=/^(\s*(?:[A-Za-z_][\w.]*\s+(?:@\s*\w+\s+)?)?)"((?:[^"\\]|\\.)*)"(\s*(?:with\s+\w+\s*)?)$/,MENU=/^(\s*)"((?:[^"\\]|\\.)*)"(\s*(?:if\s.+)?:\s*)$/,UND=/_\("((?:[^"\\]|\\.)*)"\)/;
+const DLG=/^(\s*(?:[A-Za-z_][\w.]*\s+(?:@\s*\w+\s+)?)?)"((?:[^"\\]|\\.)*)"(\s*(?:with\s+\w+\s*)?)$/,MENU=/^(\s*)"((?:[^"\\]|\\.)*)"(\s*(?:if\s.+)?:\s*)$/,UND=/_\("((?:[^"\\]|\\.)*)"\)/,UI=/^(\s*(?:textbutton|text|label|tooltip|title)\s+)"((?:[^"\\]|\\.)*)"(.*)$/;
+const strip=t=>t.replace(/\{[^}]*\}|\[[^\]]*\]|%%|\\n/g," ");
+const okUI=t=>/\p{L}/u.test(strip(t))&&!/\.(png|jpg|jpeg|webp|ogg|mp3|wav|rpy|ttf|otf|webm|mp4)$/i.test(t.trim());
 const ok=t=>/\p{L}/u.test(t)&&!/\.(png|jpg|webp|ogg|mp3|wav|rpy|ttf|webm)$/i.test(t)&&!/^[\w\/.-]+$/.test(t)||/\s/.test(t)&&/\p{L}/u.test(t);
 function parse(name,text){const lines=text.split(/\r?\n/),items=[];
  lines.forEach((ln,i)=>{if(/^\s*#/.test(ln))return;let m,pre,t,post;
   if((m=ln.match(UND))){pre=ln.slice(0,m.index)+'_("';t=m[1];post='")'+ln.slice(m.index+m[0].length)}
   else if((m=ln.match(MENU)||ln.match(DLG))){if(/^\s*(define|default|image|scene|show|play|stop|jump|call|label|python|\$)\b/.test(ln))return;pre=m[1]+'"';t=m[2];post='"'+m[3]}
+  else if((m=ln.match(UI))){pre=m[1]+'"';t=m[2];post='"'+m[3];if(okUI(t))items.push({i,pre,t,post,tr:""});return}
   else return;
-  if(ok(t))items.push({i,pre,t,post,tr:""})});
+  if(ok(t)||(UND.test(ln)&&okUI(t))||/^[A-ZÀ-Ý][a-zà-ÿ]{2,}$/.test(t))items.push({i,pre,t,post,tr:""})});
  return {name,lines,items}}
 async function addFiles(list){msg("Membaca file…");
  for(const f of list){try{
