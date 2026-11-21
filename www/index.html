@@ -70,6 +70,9 @@ const OTH={},enc=new TextEncoder();const $=id=>document.getElementById(id);let f
 const msg=t=>$("msg").textContent=t;
 /* ---- tema & background ---- */
 const store={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v);return true}catch(e){return false}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+const getP=()=>{const C=window.Capacitor;if(!C)return null;try{if(typeof C.registerPlugin==="function")return C.registerPlugin("DownloadSaver")}catch(e){}
+ if(C.Plugins&&C.Plugins.DownloadSaver)return C.Plugins.DownloadSaver;
+ if(typeof C.nativePromise==="function")return new Proxy({},{get:(_,m)=>m==="then"?undefined:o=>C.nativePromise("DownloadSaver",String(m),o||{})});return null};
 function setBg(u){document.body.style.backgroundImage=u?`linear-gradient(rgba(0,0,0,.28),rgba(0,0,0,.28)),url(${u})`:""}
 setBg(store.get("bg"));if(store.get("th"))document.documentElement.dataset.theme=store.get("th");
 $("mbtn").onclick=e=>{e.stopPropagation();$("menu").classList.toggle("open")};
@@ -166,8 +169,8 @@ $("go").onclick=async()=>{const todo=[];files.forEach(f=>f.items.forEach(x=>{if(
   const keys=[...groups.keys()],phs=[],qs=keys.map(t=>{const ph=[];phs.push(ph);return t.replace(/\{[^}]*\}|\[[^\]]*\]|%%|\\n/g,m=>{ph.push(m);return "QX"+(ph.length-1)+"X"})});
   const apply=(i,o)=>{if(typeof o!=="string"||!o.trim())return;const v=fix(o.replace(/QX\s*(\d+)\s*X/gi,(m,n)=>phs[i][n]??m));groups.get(keys[i]).forEach(x=>x.tr=v)};
   const C=window.Capacitor;let P=null,started=false;msg("Memulai… "+keys.length+" teks unik");let wl=null;try{navigator.wakeLock&&navigator.wakeLock.request("screen").then(l=>wl=l,()=>{})}catch(e){}
-  if(C&&C.isNativePlatform&&C.isNativePlatform()&&store.get("mode")==="bg"){P=C.registerPlugin("DownloadSaver");
-   try{const sp=P.startTranslate({texts:qs,lang});let done0=false,err0=null;sp.then(()=>done0=true,e=>err0=e||new Error("ditolak"));const t0=Date.now();
+  if(C&&C.isNativePlatform&&C.isNativePlatform()&&store.get("mode")==="bg"){P=getP();if(!P)note="⚠️ Plugin native tidak ditemukan, pakai mode browser. ";
+   if(P)try{const sp=P.startTranslate({texts:qs,lang});let done0=false,err0=null;sp.then(()=>done0=true,e=>err0=e||new Error("ditolak"));const t0=Date.now();
     while(!done0){await new Promise(r=>setTimeout(r,700));if(err0)throw err0;if(done0)break;const el=Math.round((Date.now()-t0)/1000);
      msg(`Mengirim ${qs.length} teks ke layanan latar belakang… ${el} dtk`);
      try{const s0=await Promise.race([P.status(),new Promise(r=>setTimeout(()=>r(null),600))]);if(s0&&!s0.finished&&s0.total>0)break}catch(e){}
@@ -222,7 +225,7 @@ $("dl").onclick=async()=>{const outs=[],bySrc=new Map();
   files.forEach(f=>{if(f.src){if(!bySrc.has(f.src))bySrc.set(f.src,[]);bySrc.get(f.src).push(f)}else outs.push({name:f.name.split("/").pop(),blob:new Blob([merged(f)])})});
   for(const [src,list] of bySrc){const ents=list.map(f=>({name:f.inner,bytes:enc.encode(merged(f))}));(OTH[src]||[]).forEach(o=>ents.push(o));outs.push({name:src,blob:await buildRpa(ents)})}
   const d=new Date(),p=n=>String(n).padStart(2,"0"),folder="renpy translate/"+`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`,C=window.Capacitor;
-  if(C&&C.isNativePlatform&&C.isNativePlatform()){const P=C.registerPlugin("DownloadSaver");for(const o of outs){msg("Menyimpan "+o.name+"…");await saveFile(P,o.name,folder,o.blob)}}
+  if(C&&C.isNativePlatform&&C.isNativePlatform()){const P=getP();if(!P)throw new Error("plugin penyimpan tidak ditemukan di APK ini");for(const o of outs){msg("Menyimpan "+o.name+"…");await saveFile(P,o.name,folder,o.blob)}}
   else for(const o of outs){const a=document.createElement("a");a.href=URL.createObjectURL(o.blob);a.download=o.name;a.click()}
   files=[];render();$("pb").style.width="0";msg("✅ Tersimpan di Download/"+folder+" : "+outs.map(o=>o.name).join(", ")+". Siap mulai dari awal.")}
  catch(e){msg("Gagal menyimpan: "+(e.message||e)+" (pasang APK terbaru jika pesan menyebut 'not implemented')")}};
