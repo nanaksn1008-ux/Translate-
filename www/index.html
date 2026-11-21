@@ -44,6 +44,7 @@ select{background:var(--in);border:1px solid var(--bd);border-radius:10px;paddin
   <button id="bgBtn">🖼️ Ubah background jadi foto</button>
   <button id="bgReset">↩️ Kembalikan background polos</button>
   <button id="thBtn">🌓 Ganti tema terang/gelap</button>
+  <button id="modeBtn"></button>
  </div>
 </header>
 <input type="file" id="bgIn" accept="image/*" hidden>
@@ -73,6 +74,8 @@ function setBg(u){document.body.style.backgroundImage=u?`linear-gradient(rgba(0,
 setBg(store.get("bg"));if(store.get("th"))document.documentElement.dataset.theme=store.get("th");
 $("mbtn").onclick=e=>{e.stopPropagation();$("menu").classList.toggle("open")};
 document.addEventListener("click",()=>$("menu").classList.remove("open"));
+const modeTxt=()=>{$("modeBtn").textContent=store.get("mode")==="web"?"🌐 Mode: browser (ketuk untuk latar belakang)":"📲 Mode: latar belakang (ketuk untuk browser)"};modeTxt();
+$("modeBtn").onclick=()=>{store.set("mode",store.get("mode")==="web"?"bg":"web");modeTxt()};
 $("bgBtn").onclick=()=>$("bgIn").click();
 $("bgReset").onclick=()=>{setBg("");store.del("bg")};
 $("thBtn").onclick=()=>{const d=document.documentElement,dark=d.dataset.theme?d.dataset.theme==="dark":matchMedia("(prefers-color-scheme:dark)").matches;d.dataset.theme=dark?"light":"dark";store.set("th",d.dataset.theme)};
@@ -133,7 +136,8 @@ async function addFiles(list){msg("Membaca file…");
    OTH[f.name]=ot;
    out.forEach(o=>files.push(Object.assign(parse(f.name+"/"+o.name,o.text),{src:f.name,inner:o.name})));
    msg(`RPA: ${out.length} file .rpy diekstrak.`+(skipped?` ${skipped} file .rpyc (duplikat dari .rpy) tidak ikut dibuat ulang.`:""))}
-  else files.push(parse(f.name,await f.text()))}catch(e){msg("Gagal membaca "+f.name+": "+e.message)}}
+  else{await new Promise(r=>setTimeout(r,30));const t0=Date.now(),pr=parse(f.name,await f.text());files.push(pr);
+   msg(`${f.name}: ${pr.lines.length} baris dibaca, ${pr.items.length} teks ditemukan (${((Date.now()-t0)/1000).toFixed(1)} dtk).`+(pr.items.length?"":" Tidak ada dialog yang cocok: file kosong, hanya berisi terjemahan kosong, atau formatnya tidak umum."))}}catch(e){msg("Gagal membaca "+f.name+": "+e.message)}}
  render()}
 const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 function render(){const n=files.reduce((a,f)=>a+f.items.length,0),d=files.reduce((a,f)=>a+f.items.filter(x=>x.tr).length,0);
@@ -162,12 +166,17 @@ $("go").onclick=async()=>{const todo=[];files.forEach(f=>f.items.forEach(x=>{if(
   const keys=[...groups.keys()],phs=[],qs=keys.map(t=>{const ph=[];phs.push(ph);return t.replace(/\{[^}]*\}|\[[^\]]*\]|%%|\\n/g,m=>{ph.push(m);return "QX"+(ph.length-1)+"X"})});
   const apply=(i,o)=>{if(typeof o!=="string"||!o.trim())return;const v=fix(o.replace(/QX\s*(\d+)\s*X/gi,(m,n)=>phs[i][n]??m));groups.get(keys[i]).forEach(x=>x.tr=v)};
   const C=window.Capacitor;let P=null,started=false;msg("Memulai… "+keys.length+" teks unik");
-  if(C&&C.isNativePlatform&&C.isNativePlatform()){P=C.registerPlugin("DownloadSaver");
-   try{await Promise.race([P.startTranslate({texts:qs,lang}),new Promise((_,j)=>setTimeout(()=>j(new Error("tidak merespons 15 detik")),15000))]);started=true}catch(e){note="⚠️ Mode latar belakang gagal ("+((e&&e.message)||e)+"), pakai mode browser. ";msg(note)}}
+  if(C&&C.isNativePlatform&&C.isNativePlatform()&&store.get("mode")!=="web"){P=C.registerPlugin("DownloadSaver");
+   try{const sp=P.startTranslate({texts:qs,lang});let done0=false,err0=null;sp.then(()=>done0=true,e=>err0=e||new Error("ditolak"));const t0=Date.now();
+    while(!done0){await new Promise(r=>setTimeout(r,700));if(err0)throw err0;if(done0)break;const el=Math.round((Date.now()-t0)/1000);
+     msg(`Mengirim ${qs.length} teks ke layanan latar belakang… ${el} dtk`);
+     try{const s0=await Promise.race([P.status(),new Promise(r=>setTimeout(()=>r(null),600))]);if(s0&&!s0.finished&&s0.total>0)break}catch(e){}
+     if(el>=25)throw new Error("tidak merespons 25 detik")}
+    started=true}catch(e){note="⚠️ Mode latar belakang gagal ("+((e&&e.message)||e)+"), pakai mode browser. ";msg(note)}}
   if(started){let applied=0,st={failed:0};
    const fetchTo=async to=>{while(applied<to){const e=Math.min(applied+500,to),r=await P.results({from:applied,to:e});r.items.forEach((o,k)=>apply(applied+k,o));applied=e}};
    try{for(;;){st=await P.status();if(ctl.signal.aborted&&!st.finished)await P.stopTranslate();
-     await fetchTo(st.finished?st.total:st.prefix);msg(`Menerjemahkan ${st.done}/${st.total}… (berjalan di latar belakang)`);render();
+     await fetchTo(st.finished?st.total:st.prefix);msg(`Menerjemahkan ${st.done}/${st.total}`+(st.total?` (${Math.round(st.done/st.total*100)}%)`:"")+` · gagal ${st.failed||0} · berjalan di latar belakang, lihat juga notifikasi`);render();
      if(st.finished)break;await new Promise(r=>setTimeout(r,1000))}}catch(e){msg("Error: "+(e.message||e))}
    fail=st.failed||0}
   else{let n=0,k=0,last=0,okN=0,netdead=false;msg(note+"Menerjemahkan 0/"+todo.length+"… (mode browser)");const batches=[];let cur=[],len=0;
