@@ -55,6 +55,54 @@ public class DownloadSaverPlugin extends Plugin {
         }
     }
 
+    private OutputStream saveOs;
+
+    @PluginMethod
+    public void saveOpen(PluginCall call) {
+        try {
+            if (saveOs != null) { try { saveOs.close(); } catch (Exception e) { } saveOs = null; }
+            String name = call.getString("filename", "file.bin");
+            String folder = call.getString("folder", "renpy translate");
+            if (Build.VERSION.SDK_INT >= 29) {
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+                v.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + folder);
+                Uri uri = getContext().getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                if (uri == null) throw new Exception("MediaStore menolak");
+                saveOs = getContext().getContentResolver().openOutputStream(uri);
+            } else {
+                File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), folder);
+                dir.mkdirs();
+                saveOs = new FileOutputStream(new File(dir, name));
+            }
+            JSObject r = new JSObject();
+            r.put("path", "Download/" + folder + "/" + name);
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()));
+        }
+    }
+
+    @PluginMethod
+    public void saveWrite(PluginCall call) {
+        try {
+            saveOs.write(Base64.decode(call.getString("data", ""), Base64.DEFAULT));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()));
+        }
+    }
+
+    @PluginMethod
+    public void saveClose(PluginCall call) {
+        try {
+            if (saveOs != null) { saveOs.close(); saveOs = null; }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()));
+        }
+    }
+
     @PluginMethod
     public void startTranslate(PluginCall call) {
         try {
