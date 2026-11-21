@@ -35,6 +35,10 @@ public class TranslateService extends Service {
     static final AtomicInteger doneCnt = new AtomicInteger();
     static volatile boolean finished = true, stop = false, running = false;
     static boolean[] batchDone;
+    static volatile String lastErr = "";
+    static volatile long blockedUntil = 0;
+    static volatile int blockStreak = 0;
+    static synchronized void addFailed() { failed++; }
     PowerManager.WakeLock wl;
     long lastNotif = 0;
 
@@ -77,7 +81,7 @@ public class TranslateService extends Service {
                 i = j;
             }
             batchDone = new boolean[batches.size()];
-            ExecutorService ex = Executors.newFixedThreadPool(6);
+            ExecutorService ex = Executors.newFixedThreadPool(4);
             for (int b = 0; b < batches.size(); b++) {
                 final int bi = b;
                 final int[] r = batches.get(b);
@@ -92,7 +96,7 @@ public class TranslateService extends Service {
         prefix = total;
         finished = true;
         running = false;
-        String msg = stop ? "Terjemahan dihentikan" : (failed > 0 ? "Selesai, " + failed + " baris gagal" : "Terjemahan selesai ✅");
+        String msg = stop ? "Terjemahan dihentikan" : (failed > 0 ? "Selesai, " + failed + " baris gagal" + (lastErr.isEmpty() ? "" : " [" + lastErr + "]") : "Terjemahan selesai ✅");
         finish(msg);
     }
 
@@ -109,14 +113,14 @@ public class TranslateService extends Service {
             try {
                 StringBuilder sb = new StringBuilder();
                 for (int k = s; k < e; k++) { if (k > s) sb.append("\n"); sb.append(texts[k]); }
-                String[] parts = google(sb.toString()).split("\\r?\\n", -1);
+                String[] parts = tr(sb.toString()).split("\\r?\\n", -1);
                 if (parts.length == e - s) out = parts;
             } catch (Exception x) { }
         }
         for (int k = s; k < e && !stop; k++) {
             String o = out != null ? out[k - s] : null;
             if (o == null || o.trim().isEmpty()) o = one(texts[k]);
-            if (o == null) failed++; else results[k] = o;
+            if (o == null) addFailed(); else results[k] = o;
             doneCnt.incrementAndGet();
         }
         long now = System.currentTimeMillis();
@@ -126,23 +130,41 @@ public class TranslateService extends Service {
         }
     }
 
+    static String tr(String q) throws Exception {
+        Exception last = null;
+        try { return google(q); } catch (Exception e) { last = e; lastErr = "Google: " + e.getMessage(); }
+        try { return google2(q); } catch (Exception e) { last = e; lastErr += " | Google2: " + e.getMessage(); }
+        try { return lingva(q); } catch (Exception e) { last = e; lastErr += " | Lingva: " + e.getMessage(); }
+        throw last;
+    }
+
     String one(String q) {
-        for (int a = 0; a < 3 && !stop; a++) {
-            try { return google(q); } catch (Exception e1) { }
-            try { return mymemory(q); } catch (Exception e2) { }
-            try { return lingva(q); } catch (Exception e3) { }
-            try { Thread.sleep(800L * (a + 1)); } catch (Exception e) { }
+        for (int a = 0; a < 5 && !stop; a++) {
+            try { return tr(q); } catch (Exception e1) { }
+            try { if (q.length() <= 480) return mymemory(q); } catch (Exception e2) { }
+            try { Thread.sleep(1500L * (a + 1)); } catch (Exception e) { }
         }
         return null;
     }
 
     static String http(String u) throws Exception {
+        long w = blockedUntil - System.currentTimeMillis();
+        if (w > 0) { try { Thread.sleep(Math.min(w, 60000L)); } catch (Exception e) { } }
         HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
         c.setConnectTimeout(15000);
         c.setReadTimeout(20000);
-        c.setRequestProperty("User-Agent", "Mozilla/5.0");
+        c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36");
+        c.setRequestProperty("Accept", "application/json, text/plain, */*");
+        c.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
+        c.setRequestProperty("Referer", "https://translate.google.com/");
         int code = c.getResponseCode();
+        if (code == 429 || code == 503) {
+            blockStreak = Math.min(blockStreak + 1, 6);
+            blockedUntil = System.currentTimeMillis() + 5000L * blockStreak;
+            throw new Exception("HTTP " + code);
+        }
         if (code != 200) throw new Exception("HTTP " + code);
+        blockStreak = 0;
         BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
         StringBuilder sb = new StringBuilder();
         char[] buf = new char[8192];
@@ -150,6 +172,25 @@ public class TranslateService extends Service {
         while ((n = r.read(buf)) > 0) sb.append(buf, 0, n);
         r.close();
         return sb.toString();
+    }
+
+    static String google2(String q) throws Exception {
+        String body = http("https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=" + lang + "&q=" + URLEncoder.encode(q, "UTF-8"));
+        JSONObject o = null;
+        String t = "";
+        if (body.trim().startsWith("{")) {
+            o = new JSONObject(body);
+            JSONArray ss = o.getJSONArray("sentences");
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < ss.length(); i++) sb.append(ss.getJSONObject(i).optString("trans", ""));
+            t = sb.toString();
+        } else {
+            JSONArray a = new JSONArray(body);
+            Object f = a.get(0);
+            t = (f instanceof JSONArray) ? ((JSONArray) f).getString(0) : String.valueOf(f);
+        }
+        if (t.isEmpty()) throw new Exception("kosong");
+        return t;
     }
 
     static String google(String q) throws Exception {
