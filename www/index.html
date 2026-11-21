@@ -108,6 +108,11 @@ function unpickle(b){let p=0,st=[],mk=[],memo=[];const dv=new DataView(b.buffer,
  case 116:{const m=mk.pop();st.push(st.splice(m));break}
  case 0x85:st.push([st.pop()]);break;case 0x86:{const y=st.pop(),x=st.pop();st.push([x,y]);break}
  case 0x87:{const z=st.pop(),y=st.pop(),x=st.pop();st.push([x,y,z]);break}
+ case 99:{const ln=()=>{let t="";while(b[p]!==10)t+=String.fromCharCode(b[p++]);p++;return t};const m=ln(),n=ln();st.push({g:m+"."+n});break}
+ case 0x93:{const n=st.pop(),m=st.pop();st.push({g:m+"."+n});break}
+ case 82:{const ar=st.pop(),f=st.pop();st.push(f&&f.g==="_codecs.encode"?(Array.isArray(ar)?String(ar[0]):""):null);break}
+ case 0x81:{const ar=st.pop();st.pop();st.push(null);break}
+ case 48:st.pop();break;case 50:st.push(top());break;
  case 78:st.push(null);break;case 46:return st.pop();
  default:throw new Error("Opcode pickle tidak didukung: "+o)}}}
 async function readRpa(buf){const u=new Uint8Array(buf);let e=u.indexOf(10);const h=new TextDecoder("latin1").decode(u.subarray(0,e)).split(" ");
@@ -223,11 +228,12 @@ async function saveFile(P,name,folder,blob){await P.saveOpen({filename:name,fold
 $("dl").onclick=async()=>{const outs=[],bySrc=new Map();
  try{msg("Membuat file…");
   files.forEach(f=>{if(f.src){if(!bySrc.has(f.src))bySrc.set(f.src,[]);bySrc.get(f.src).push(f)}else outs.push({name:f.name.split("/").pop(),blob:new Blob([merged(f)])})});
-  for(const [src,list] of bySrc){const ents=list.map(f=>({name:f.inner,bytes:enc.encode(merged(f))}));(OTH[src]||[]).forEach(o=>ents.push(o));outs.push({name:src,blob:await buildRpa(ents)})}
+  for(const [src,list] of bySrc){const ents=list.filter(f=>f.items.some(x=>x.tr)).map(f=>({name:f.inner,data:merged(f)}));if(ents.length)outs.push({name:src.replace(/\.rpa$/i,"")+"_terjemahan.zip",blob:zip(ents)})}
+  if(!outs.length)throw new Error("belum ada baris yang diterjemahkan");
   const d=new Date(),p=n=>String(n).padStart(2,"0"),folder="renpy translate/"+`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`,C=window.Capacitor;
   if(C&&C.isNativePlatform&&C.isNativePlatform()){const P=getP();if(!P)throw new Error("plugin penyimpan tidak ditemukan di APK ini");for(const o of outs){msg("Menyimpan "+o.name+"…");await saveFile(P,o.name,folder,o.blob)}}
   else for(const o of outs){const a=document.createElement("a");a.href=URL.createObjectURL(o.blob);a.download=o.name;a.click()}
-  files=[];render();$("pb").style.width="0";msg("✅ Tersimpan di Download/"+folder+" : "+outs.map(o=>o.name).join(", ")+". Siap mulai dari awal.")}
+  files=[];render();$("pb").style.width="0";msg("✅ Tersimpan di Download/"+folder+" : "+outs.map(o=>o.name).join(", ")+". Siap mulai dari awal."+(bySrc.size?" Ekstrak ZIP ke folder game/ (gabung/timpa). JANGAN hapus file .rpa asli.":""))}
  catch(e){msg("Gagal menyimpan: "+(e.message||e)+" (pasang APK terbaru jika pesan menyebut 'not implemented')")}};
 /* ---- input ---- */
 const dr=$("drop");dr.onclick=()=>$("fin").click();$("fin").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};
