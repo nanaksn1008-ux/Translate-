@@ -142,8 +142,8 @@ async function addFiles(list){msg("Membaca file…");
  for(const f of list){try{
   if(/\.rpa$/i.test(f.name)){const {out,others:ot,skipped}=await readRpa(await f.arrayBuffer());
    OTH[f.name]=ot;
-   out.forEach(o=>files.push(Object.assign(parse(f.name+"/"+o.name,o.text),{src:f.name,inner:o.name})));
-   msg(`RPA: ${out.length} file .rpy diekstrak.`+(skipped?` ${skipped} file .rpyc (duplikat dari .rpy) tidak ikut dibuat ulang.`:""))}
+   const tlSkip=out.filter(o=>/^tl\//i.test(o.name)).length;out.filter(o=>!/^tl\//i.test(o.name)).forEach(o=>files.push(Object.assign(parse(f.name+"/"+o.name,o.text),{src:f.name,inner:o.name})));
+   msg(`RPA: ${out.length-tlSkip} file .rpy diekstrak.`+(tlSkip?` ${tlSkip} file folder tl/ (terjemahan bawaan) dilewati.`:"")+(skipped?` ${skipped} file .rpyc (duplikat dari .rpy) tidak ikut dibuat ulang.`:""))}
   else{await new Promise(r=>setTimeout(r,30));const t0=Date.now(),pr=parse(f.name,await f.text());files.push(pr);
    msg(`${f.name}: ${pr.lines.length} baris dibaca, ${pr.items.length} teks ditemukan (${((Date.now()-t0)/1000).toFixed(1)} dtk).`+(pr.items.length?"":" Tidak ada dialog yang cocok: file kosong, hanya berisi terjemahan kosong, atau formatnya tidak umum."))}}catch(e){msg("Gagal membaca "+f.name+": "+e.message)}}
  render()}
@@ -188,7 +188,7 @@ $("go").onclick=async()=>{const todo=[];files.forEach(f=>f.items.forEach(x=>{if(
      if(st.finished)break;await new Promise(r=>setTimeout(r,1000))}}catch(e){msg("Error: "+(e.message||e))}
    fail=st.failed||0}
   else{let n=0,k=0,last=0,okN=0,netdead=false;msg(note+"Menerjemahkan 0/"+todo.length+"… (mode browser, biarkan layar tetap menyala)");const batches=[];let cur=[],len=0;
-   for(const t of keys.map((q,i)=>keys[i])){if(cur.length&&(len+t.length>1200||cur.length>=25)){batches.push(cur);cur=[];len=0}cur.push(t);len+=t.length+1}
+   for(const t of keys.map((q,i)=>keys[i])){if(cur.length&&(len+t.length>1500||cur.length>=30)){batches.push(cur);cur=[];len=0}cur.push(t);len+=t.length+1}
    if(cur.length)batches.push(cur);
    const put=(t,o)=>{const v=fix(o);groups.get(t).forEach(x=>x.tr=v);n+=groups.get(t).length;okN+=groups.get(t).length};
    const worker=async()=>{while(k<batches.length&&!ctl.signal.aborted&&!netdead){const b=batches[k++];let ok=false,dead=false;
@@ -196,7 +196,7 @@ $("go").onclick=async()=>{const todo=[];files.forEach(f=>f.items.forEach(x=>{if(
     if(!ok&&dead){netdead=true;break}
     if(!ok)for(const t of b){try{put(t,await tr1(t,lang))}catch(e){fail+=groups.get(t).length;n+=groups.get(t).length}}
     if(Date.now()-last>1500){last=Date.now();msg(note+`Menerjemahkan ${n}/${todo.length} (${Math.round(n/todo.length*100)}%) · gagal ${fail} · biarkan layar menyala`);render()}}};
-   await Promise.all([1,2,3,4,5,6].map(worker));if(netdead){fail=todo.length-okN;note+="⚠️ Tidak bisa menghubungi layanan terjemahan ("+lastErr.slice(0,140)+"). Periksa internet/VPN. "}}
+   await Promise.all([1,2,3,4,5,6,7,8,9,10].map(worker));if(netdead){fail=todo.length-okN;note+="⚠️ Tidak bisa menghubungi layanan terjemahan ("+lastErr.slice(0,140)+"). Periksa internet/VPN. "}}
   try{wl&&wl.release()}catch(e){}
   msg(note+(ctl.signal.aborted?"Dihentikan.":fail?`Selesai, ${fail} baris gagal`+(lastErr?` [${lastErr.slice(0,160)}]`:"")+`. Tekan Terjemahkan lagi untuk mengulang yang gagal.`:"Selesai ✅ Periksa hasilnya lalu unduh."));
   ctl=null;$("stop").disabled=true;render()};
