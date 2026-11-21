@@ -10,7 +10,9 @@ import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
+import org.json.JSONObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -54,25 +56,49 @@ public class DownloadSaverPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void progress(PluginCall call) {
+    public void startTranslate(PluginCall call) {
         try {
             Context c = getContext();
-            String text = call.getString("text", "");
-            if (Boolean.TRUE.equals(call.getBoolean("done", false))) {
-                TranslateService.finish(text);
-            } else if (Boolean.TRUE.equals(call.getBoolean("start", false))) {
-                if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
-                    getActivity().requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 77);
-                }
-                Intent i = new Intent(c, TranslateService.class);
-                i.putExtra("text", text);
-                ContextCompat.startForegroundService(c, i);
-            } else {
-                TranslateService.update(text, call.getInt("progress", 0), call.getInt("max", 0));
+            JSArray arr = call.getArray("texts");
+            String[] t = new String[arr.length()];
+            for (int i = 0; i < t.length; i++) t[i] = arr.getString(i);
+            if (TranslateService.running) { call.reject("Terjemahan lain masih berjalan"); return; }
+            TranslateService.prepare(t, call.getString("lang", "id"));
+            if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                getActivity().requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 77);
             }
+            ContextCompat.startForegroundService(c, new Intent(c, TranslateService.class));
             call.resolve();
         } catch (Exception e) {
             call.reject(String.valueOf(e.getMessage()));
         }
+    }
+
+    @PluginMethod
+    public void status(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("done", TranslateService.doneCnt.get());
+        r.put("total", TranslateService.total);
+        r.put("failed", TranslateService.failed);
+        r.put("prefix", TranslateService.prefix);
+        r.put("finished", TranslateService.finished);
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void results(PluginCall call) {
+        int from = call.getInt("from", 0), to = call.getInt("to", 0);
+        String[] res = TranslateService.results;
+        JSArray out = new JSArray();
+        for (int i = from; i < to && i < res.length; i++) out.put(res[i] == null ? JSONObject.NULL : res[i]);
+        JSObject r = new JSObject();
+        r.put("items", out);
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void stopTranslate(PluginCall call) {
+        TranslateService.stop = true;
+        call.resolve();
     }
 }
