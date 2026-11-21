@@ -78,13 +78,18 @@ $("bgReset").onclick=()=>{setBg("");store.del("bg")};
 $("thBtn").onclick=()=>{const d=document.documentElement,dark=d.dataset.theme?d.dataset.theme==="dark":matchMedia("(prefers-color-scheme:dark)").matches;d.dataset.theme=dark?"light":"dark";store.set("th",d.dataset.theme)};
 $("bgIn").onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const s=Math.min(1,1400/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);const d=c.toDataURL("image/jpeg",.8);setBg(d);store.set("bg",d);URL.revokeObjectURL(u)};im.src=u};
 /* ---- RPA ---- */
-function unpickle(b){let p=0,st=[],mk=[],memo=[];const dv=new DataView(b.buffer,b.byteOffset,b.byteLength),td=new TextDecoder("latin1"),top=()=>st[st.length-1];
+function unpickle(b){let p=0,st=[],mk=[],memo=[];const dv=new DataView(b.buffer,b.byteOffset,b.byteLength),td=new TextDecoder("latin1"),td8=new TextDecoder(),top=()=>st[st.length-1];
  const str=n=>{const s=td.decode(b.subarray(p,p+n));p+=n;return s};
  for(;;){const o=b[p++];switch(o){
  case 0x80:p++;break;case 0x95:p+=8;break;
  case 125:st.push(new Map);break;case 93:case 41:st.push([]);break;case 40:mk.push(st.length);break;
- case 88:{const n=dv.getUint32(p,true);p+=4;st.push(str(n));break}
- case 0x8c:case 85:{const n=b[p++];st.push(str(n));break}
+ case 88:{const n=dv.getUint32(p,true);p+=4;st.push(td8.decode(b.subarray(p,p+n)));p+=n;break}
+ case 0x8c:{const n=b[p++];st.push(td8.decode(b.subarray(p,p+n)));p+=n;break}
+ case 85:{const n=b[p++];st.push(str(n));break}
+ case 67:{const n=b[p++];st.push(str(n));break}
+ case 66:{const n=dv.getUint32(p,true);p+=4;st.push(str(n));break}
+ case 0x8b:{const n=dv.getUint32(p,true);p+=4;let v=0;for(let i=n-1;i>=0;i--)v=v*256+b[p+i];p+=n;st.push(v);break}
+ case 71:p+=8;st.push(0);break;case 0x88:st.push(true);break;case 0x89:st.push(false);break;
  case 84:{const n=dv.getUint32(p,true);p+=4;st.push(str(n));break}
  case 74:st.push(dv.getInt32(p,true));p+=4;break;case 75:st.push(b[p++]);break;case 77:st.push(dv.getUint16(p,true));p+=2;break;
  case 0x8a:{const n=b[p++];let v=0;for(let i=n-1;i>=0;i--)v=v*256+b[p+i];p+=n;st.push(v);break}
