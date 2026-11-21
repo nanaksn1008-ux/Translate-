@@ -65,7 +65,7 @@ select{background:var(--in);border:1px solid var(--bd);border-radius:10px;paddin
 <div class="card"><b>Pratinjau &amp; edit</b><div class="tbl" id="tbl"><div class="it" style="color:var(--mu)">Belum ada teks.</div></div></div>
 </div>
 <script>
-const $=id=>document.getElementById(id);let files=[],ctl=null;
+const OTH={},enc=new TextEncoder();const $=id=>document.getElementById(id);let files=[],ctl=null;
 const msg=t=>$("msg").textContent=t;
 /* ---- tema & background ---- */
 const store={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v);return true}catch(e){return false}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
@@ -108,12 +108,15 @@ async function readRpa(buf){const u=new Uint8Array(buf);let e=u.indexOf(10);cons
  if(!/^RPA-[23]/.test(h[0]))throw new Error("Bukan arsip RPA 2/3");
  const off=parseInt(h[1],16),key=h[0]==="RPA-3.0"?parseInt(h[2],16):0;
  const ds=new Blob([u.subarray(off)]).stream().pipeThrough(new DecompressionStream("deflate"));
- const idx=unpickle(new Uint8Array(await new Response(ds).arrayBuffer())),out=[];let skipped=0;
- for(const [name,v] of idx){if(!/\.rpy$/i.test(name)){if(/\.rpyc?$/i.test(name))skipped++;continue}
+ const idx=unpickle(new Uint8Array(await new Response(ds).arrayBuffer())),out=[],others=[];let skipped=0;
+ const names=new Set([...idx.keys()]);
+ for(const [name,v] of idx){const isRpy=/\.rpy$/i.test(name);
   const [o,l,pre]=v[0],s=(o^key)>>>0,n=(l^key)>>>0;let bytes=u.subarray(s,s+n-(pre?pre.length:0));
   if(pre){const pb=Uint8Array.from(pre,c=>c.charCodeAt(0));const t=new Uint8Array(pb.length+bytes.length);t.set(pb);t.set(bytes,pb.length);bytes=t}
-  out.push({name,text:new TextDecoder().decode(bytes)})}
- return {out,skipped}}
+  if(isRpy)out.push({name,text:new TextDecoder().decode(bytes)});
+  else if(/\.rpyc$/i.test(name)&&names.has(name.slice(0,-1)))skipped++;
+  else others.push({name,bytes})}
+ return {out,others,skipped}}
 /* ---- parsing .rpy ---- */
 const DLG=/^(\s*(?:[A-Za-z_][\w.]*\s+(?:@\s*\w+\s+)?)?)"((?:[^"\\]|\\.)*)"(\s*(?:with\s+\w+\s*)?)$/,MENU=/^(\s*)"((?:[^"\\]|\\.)*)"(\s*(?:if\s.+)?:\s*)$/,UND=/_\("((?:[^"\\]|\\.)*)"\)/;
 const ok=t=>/\p{L}/u.test(t)&&!/\.(png|jpg|webp|ogg|mp3|wav|rpy|ttf|webm)$/i.test(t)&&!/^[\w\/.-]+$/.test(t)||/\s/.test(t)&&/\p{L}/u.test(t);
@@ -126,9 +129,10 @@ function parse(name,text){const lines=text.split(/\r?\n/),items=[];
  return {name,lines,items}}
 async function addFiles(list){msg("Membaca file…");
  for(const f of list){try{
-  if(/\.rpa$/i.test(f.name)){const {out,skipped}=await readRpa(await f.arrayBuffer());
-   out.forEach(o=>files.push(parse(f.name+"/"+o.name,o.text)));
-   msg(`RPA: ${out.length} file .rpy diekstrak.`+(skipped?` ${skipped} file .rpyc dilewati (dekompilasi dulu dengan unrpyc).`:""))}
+  if(/\.rpa$/i.test(f.name)){const {out,others:ot,skipped}=await readRpa(await f.arrayBuffer());
+   OTH[f.name]=ot;
+   out.forEach(o=>files.push(Object.assign(parse(f.name+"/"+o.name,o.text),{src:f.name,inner:o.name})));
+   msg(`RPA: ${out.length} file .rpy diekstrak.`+(skipped?` ${skipped} file .rpyc (duplikat dari .rpy) tidak ikut dibuat ulang.`:""))}
   else files.push(parse(f.name,await f.text()))}catch(e){msg("Gagal membaca "+f.name+": "+e.message)}}
  render()}
 const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
@@ -190,16 +194,26 @@ function zip(ents){const te=new TextEncoder(),parts=[],cd=[];let off=0;
   cd.push(ch,nm);off+=30+nm.length+d.length}
  const cs=cd.reduce((a,x)=>a+(x.byteLength),0),end=new DataView(new ArrayBuffer(22));end.setUint32(0,0x06054b50,true);end.setUint16(8,ents.length,true);end.setUint16(10,ents.length,true);end.setUint32(12,cs,true);end.setUint32(16,off,true);
  return new Blob([...parts,...cd,end],{type:"application/zip"})}
-const b64=async bl=>{const u=new Uint8Array(await bl.arrayBuffer());let r="";for(let i=0;i<u.length;i+=8192)r+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(r)};
-$("dl").onclick=async()=>{const ents=[];files.forEach(f=>{const n=f.name.replace(/[^\w.\/-]/g,"_");ents.push({name:"terjemahan_gabungan/"+n,data:merged(f)},{name:"asli/"+n,data:f.lines.join("\n")})});
- const bl=zip(ents),C=window.Capacitor,d=new Date(),p=n=>String(n).padStart(2,"0"),fn=`renpy-terjemahan-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.zip`;
- let done="";
- try{if(C&&C.isNativePlatform&&C.isNativePlatform()){
-   try{const r=await C.registerPlugin("DownloadSaver").save({filename:fn,folder:"renpy translate",data:await b64(bl)});done="Tersimpan di "+r.path}
-   catch(e){const P=C.Plugins,w=await P.Filesystem.writeFile({path:fn,data:await b64(bl),directory:"CACHE"});await P.Share.share({title:"Terjemahan Ren'Py",url:w.uri,dialogTitle:"Simpan ZIP"});done="ZIP dibagikan (penyimpanan langsung gagal: "+(e.message||e)+")"}}
-  else{const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download=fn;a.click();done="ZIP diunduh: "+fn}
-  files=[];render();$("pb").style.width="0";msg("✅ "+done+". Siap mulai dari awal.")}
- catch(e){msg("Gagal menyimpan: "+(e.message||e))}};
+const b64u=u=>{let r="";for(let i=0;i<u.length;i+=8192)r+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(r)};
+const lng=n=>{const b=[];let x=n;do{b.push(x%256);x=Math.floor(x/256)}while(x>0);if(b[b.length-1]&128)b.push(0);return [0x8a,b.length,...b]};
+async function buildRpa(ents){const key=0x1badf00d,chunks=[],idx=[];let pos=34;
+ for(const e of ents){idx.push([e.name,pos,e.bytes.length]);chunks.push(e.bytes);pos+=e.bytes.length}
+ const pk=[0x80,2,0x7d,0x28];
+ for(const [n,o,l] of idx){const nb=enc.encode(n),L=nb.length;pk.push(0x58,L&255,L>>>8&255,L>>>16&255,L>>>24&255);for(const c of nb)pk.push(c);pk.push(0x5d,...lng((o^key)>>>0),...lng((l^key)>>>0),0x86,0x61)}
+ pk.push(0x75,0x2e);
+ const zc=await new Response(new Blob([new Uint8Array(pk)]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer();
+ const hd=enc.encode("RPA-3.0 "+pos.toString(16).padStart(16,"0")+" "+key.toString(16).padStart(8,"0")+"\n");
+ return new Blob([hd,...chunks,zc])}
+async function saveFile(P,name,folder,blob){await P.saveOpen({filename:name,folder});const u=new Uint8Array(await blob.arrayBuffer());for(let i=0;i<u.length;i+=786432)await P.saveWrite({data:b64u(u.subarray(i,i+786432))});await P.saveClose()}
+$("dl").onclick=async()=>{const outs=[],bySrc=new Map();
+ try{msg("Membuat file…");
+  files.forEach(f=>{if(f.src){if(!bySrc.has(f.src))bySrc.set(f.src,[]);bySrc.get(f.src).push(f)}else outs.push({name:f.name.split("/").pop(),blob:new Blob([merged(f)])})});
+  for(const [src,list] of bySrc){const ents=list.map(f=>({name:f.inner,bytes:enc.encode(merged(f))}));(OTH[src]||[]).forEach(o=>ents.push(o));outs.push({name:src,blob:await buildRpa(ents)})}
+  const d=new Date(),p=n=>String(n).padStart(2,"0"),folder="renpy translate/"+`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`,C=window.Capacitor;
+  if(C&&C.isNativePlatform&&C.isNativePlatform()){const P=C.registerPlugin("DownloadSaver");for(const o of outs){msg("Menyimpan "+o.name+"…");await saveFile(P,o.name,folder,o.blob)}}
+  else for(const o of outs){const a=document.createElement("a");a.href=URL.createObjectURL(o.blob);a.download=o.name;a.click()}
+  files=[];render();$("pb").style.width="0";msg("✅ Tersimpan di Download/"+folder+" : "+outs.map(o=>o.name).join(", ")+". Siap mulai dari awal.")}
+ catch(e){msg("Gagal menyimpan: "+(e.message||e)+" (pasang APK terbaru jika pesan menyebut 'not implemented')")}};
 /* ---- input ---- */
 const dr=$("drop");dr.onclick=()=>$("fin").click();$("fin").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};
 dr.ondragover=e=>{e.preventDefault();dr.classList.add("over")};dr.ondragleave=()=>dr.classList.remove("over");
