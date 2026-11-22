@@ -1,261 +1,246 @@
 <!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="UTF-8">
+<html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>RPGM Translator</title>
+<title>Ren'Py Translator</title>
 <style>
-body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#14161c;color:#e8e8ee}
-h1{font-size:20px;margin:0 0 4px}
-p.s{color:#9aa;font-size:13px;margin:0 0 14px}
-label{display:block;font-size:13px;margin:12px 0 4px;color:#bcd}
-select,input[type=file]{width:100%;padding:10px;border-radius:8px;border:1px solid #333;background:#1f2230;color:#fff;box-sizing:border-box}
-button{width:100%;margin-top:12px;padding:14px;border:0;border-radius:10px;background:#4f7cff;color:#fff;font-size:16px;font-weight:600}
-button.dl{background:#2f9e6b}
-button:disabled{opacity:.45}
-progress{width:100%;height:14px}
-#pct{margin-top:14px;font-size:22px;font-weight:700}
-#sub{font-size:12px;color:#9aa;margin-bottom:4px}
-#log{margin-top:12px;font:12px/1.5 monospace;white-space:pre-wrap;background:#0d0f14;padding:10px;border-radius:8px;max-height:260px;overflow:auto}
-</style>
-</head>
-<body>
-<h1>RPGM Translator</h1>
-<p class="s">Terjemahkan file JSON game RPG Maker MV/MZ (folder <b>www/data</b> atau <b>data</b>).</p>
-
-<label>Bahasa asal</label>
-<select id="sl"><option value="auto">Otomatis</option><option value="ja">Jepang</option><option value="en">Inggris</option><option value="zh-CN">Mandarin</option><option value="ko">Korea</option></select>
-
-<label>Bahasa tujuan</label>
-<select id="tl"><option value="id">Indonesia</option><option value="en">Inggris</option></select>
-
-<label>Pilih file JSON (bisa banyak: Map001.json, Items.json, System.json, dst.)</label>
-<input type="file" id="files" multiple accept=".json,application/json">
-
-<button id="go">1. Mulai Terjemahkan</button>
-<button id="dl" class="dl" disabled>2. Unduh Hasil (belum ada)</button>
-
-<div id="pct">0%</div>
-<div id="sub">Menunggu</div>
-<progress id="bar" value="0" max="100"></progress>
-<div id="log">Siap.</div>
-
+:root{box-sizing:border-box;padding-top:max(env(safe-area-inset-top,0px),8px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f4f1fb;--card:rgba(255,255,255,.82);--tx:#1d1b2e;--mu:#6b6784;--ac:#7c4dff;--ac2:#ff5c9d;--bd:rgba(120,100,180,.25);--in:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#15121f;--card:rgba(35,30,52,.82);--tx:#efeaff;--mu:#a49fc0;--bd:rgba(160,140,230,.25);--in:#1d1930}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#15121f;--card:rgba(35,30,52,.82);--tx:#efeaff;--mu:#a49fc0;--bd:rgba(160,140,230,.25);--in:#1d1930}
+html{scroll-padding-top:max(env(safe-area-inset-top,0px),8px)}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--tx);background:var(--bg) center/cover fixed no-repeat;min-height:100vh}
+.wrap{max-width:900px;margin:0 auto;padding:14px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:12px;position:relative}
+header h1{font-size:19px;margin:0;flex:1}header small{display:block;color:var(--mu);font-weight:400;font-size:12px}
+.card{background:var(--card);backdrop-filter:blur(10px);border:1px solid var(--bd);border-radius:16px;padding:14px;margin-bottom:12px}
+button,select{font:inherit;color:var(--tx)}
+.btn{border:0;border-radius:12px;padding:10px 16px;font-weight:600;cursor:pointer;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.ghost{background:var(--in);color:var(--tx);border:1px solid var(--bd)}
+.icon{width:40px;height:40px;border-radius:12px;border:1px solid var(--bd);background:var(--in);cursor:pointer;font-size:18px}
+.menu{position:absolute;right:0;top:48px;z-index:5;background:var(--in);border:1px solid var(--bd);border-radius:14px;padding:6px;min-width:230px;box-shadow:0 8px 30px rgba(0,0,0,.25);display:none}
+.menu.open{display:block}
+.menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:10px 12px;border-radius:10px;cursor:pointer}
+.menu button:hover{background:var(--bd)}
+.drop{border:2px dashed var(--bd);border-radius:14px;padding:22px;text-align:center;color:var(--mu);cursor:pointer}
+.drop.over{border-color:var(--ac);color:var(--ac)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select{background:var(--in);border:1px solid var(--bd);border-radius:10px;padding:9px}
+.bar{height:8px;border-radius:6px;background:var(--bd);overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ac),var(--ac2));transition:width .2s}
+.file{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);font-size:13px}
+.file span:last-child{color:var(--mu);white-space:nowrap}
+.tbl{max-height:360px;overflow:auto}
+.it{padding:8px 0;border-bottom:1px solid var(--bd);font-size:13px}
+.it div:first-child{color:var(--mu)}
+.it textarea{width:100%;margin-top:4px;background:var(--in);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:6px;font:inherit;resize:vertical;min-height:34px}
+#msg{color:var(--mu);font-size:13px;margin-top:8px;min-height:18px}
+</style></head><body>
+<div class="wrap">
+<header>
+ <svg width="46" height="46" viewBox="0 0 64 64" aria-label="Ikon aplikasi"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c4dff"/><stop offset="1" stop-color="#ff5c9d"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#g)"/><path d="M14 20h22v5H14zM14 30h14v5H14z" fill="#fff"/><path d="M38 46l8-22 8 22M41 40h10" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="46" r="4" fill="#fff"/></svg>
+ <h1>Ren’Py Translator<small>Terjemahkan .rpy, .rpyc &amp; arsip .rpa otomatis</small></h1>
+ <button class="icon" id="mbtn" aria-label="Menu">⚙️</button>
+ <div class="menu" id="menu">
+  <button id="bgBtn">🖼️ Ubah background jadi foto</button>
+  <button id="bgReset">↩️ Kembalikan background polos</button>
+  <button id="thBtn">🌓 Ganti tema terang/gelap</button>
+  <button id="modeBtn"></button>
+ </div>
+</header>
+<input type="file" id="bgIn" accept="image/*" hidden>
+<div class="card">
+ <div class="drop" id="drop">📂 Ketuk atau seret file <b>.rpy</b> / <b>.rpyc</b> / <b>.rpa</b> ke sini</div>
+ <input type="file" id="fin" multiple hidden>
+ <div id="files"></div>
+</div>
+<div class="card">
+ <div class="row">
+  <label>Bahasa tujuan
+   <select id="lang"><option value="id">Indonesia</option><option value="en">Inggris</option><option value="ja">Jepang</option><option value="ko">Korea</option><option value="zh-CN">Mandarin</option><option value="es">Spanyol</option><option value="fr">Prancis</option><option value="de">Jerman</option><option value="ru">Rusia</option><option value="pt">Portugis</option></select></label>
+  <button class="btn" id="go" disabled>✨ Terjemahkan otomatis</button>
+  <button class="btn ghost" id="stop" disabled>Stop</button>
+  <button class="btn" id="dl" disabled>⬇️ Unduh gabungan (ZIP)</button>
+ </div>
+ <div class="bar"><i id="pb"></i></div><div id="msg"></div>
+</div>
+<div class="card"><b>Pratinjau &amp; edit</b><div class="tbl" id="tbl"><div class="it" style="color:var(--mu)">Belum ada teks.</div></div></div>
+</div>
 <script>
-const $=id=>document.getElementById(id);
-const logEl=$('log');
-const lines=[];
-const log=m=>{lines.push(m);if(lines.length>40)lines.shift();logEl.textContent=lines.join('\n');logEl.scrollTop=logEl.scrollHeight};
-const results=new Map(); // nama file -> teks JSON hasil terjemahan
-const FOLDER='rpgmtranslate';
-
-const CC=/\\[A-Za-z]+\[\d*\]|\\[.!|<>^{}$]|\\[A-Za-z]|%\d+/g;
-const DB=/^(Actors|Classes|Items|Weapons|Armors|Skills|States|Enemies)$/;
-const DBKEYS=new Set(['name','description','message1','message2','message3','message4','nickname','profile']);
-const cache=new Map();
-
-/* ---------- simpan ke Download/rpgmtranslate lewat plugin native ---------- */
-function callSave(opts){
-  const C=window.Capacitor;
-  if(!C)return Promise.reject(new Error('Capacitor tidak terdeteksi (bukan di dalam APK)'));
-  if(C.nativePromise)return C.nativePromise('DownloadSaver','save',opts);
-  if(C.Plugins&&C.Plugins.DownloadSaver)return C.Plugins.DownloadSaver.save(opts);
-  if(C.registerPlugin)return C.registerPlugin('DownloadSaver').save(opts);
-  return Promise.reject(new Error('jembatan Capacitor tidak punya nativePromise'));
-}
-async function save(name,text){
-  const r=await callSave({name,data:text,folder:FOLDER});
-  return (r&&r.path)||('Download/'+FOLDER+'/'+name);
-}
-
-/* ---------- penerjemahan ---------- */
-function protect(s){const m=[];const t=s.replace(CC,x=>{m.push(x);return '\u27e6'+(m.length-1)+'\u27e7'});return {t,m}}
-function restore(t,m){
-  let n=0;
-  const r=t.replace(/\u27e6\s*(\d+)\s*\u27e7/g,(a,i)=>{n++;return m[i]??''});
-  return n===m.length?r:null;
-}
-async function gt(text,sl,tl){
-  const url='https://translate.googleapis.com/translate_a/single?client=gtx&sl='+sl+'&tl='+tl+'&dt=t&q='+encodeURIComponent(text);
-  for(let i=0;i<3;i++){
-    try{
-      const r=await fetch(url);
-      const d=await r.json();
-      return d[0].map(x=>x[0]).join('');
-    }catch(e){await new Promise(r=>setTimeout(r,800*(i+1)))}
-  }
-  return null;
-}
-
-let inflight=0;const waitQ=[];
-function limited(fn){
-  return new Promise((res,rej)=>{
-    const go=()=>{inflight++;fn().then(res,rej).finally(()=>{inflight--;if(waitQ.length)waitQ.shift()()})};
-    if(inflight<8)go();else waitQ.push(go);
-  });
-}
-let batchOK=true,batchFail=0;
-async function gtBatch(texts,sl,tl){
-  const body=new URLSearchParams();
-  texts.forEach(t=>body.append('q',t));
-  const url='https://translate.googleapis.com/translate_a/t?client=gtx&format=text&sl='+sl+'&tl='+tl;
-  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()});
-  let d=await r.json();
-  if(typeof d==='string'&&texts.length===1)d=[d];
-  if(!Array.isArray(d)||d.length!==texts.length)return null;
-  const out=d.map(x=>Array.isArray(x)?x[0]:x);
-  return out.every(x=>typeof x==='string')?out:null;
-}
-async function translateBatch(items,sl,tl){
-  let outs=null;
-  if(batchOK){
-    try{outs=await limited(()=>gtBatch(items.map(i=>i.t),sl,tl))}catch(e){outs=null}
-    if(outs)batchFail=0;
-    else if(++batchFail>=3){batchOK=false;log('Mode cepat tidak didukung, pakai mode satuan')}
-  }
-  if(!outs)outs=await Promise.all(items.map(i=>limited(()=>gt(i.t,sl,tl))));
-  items.forEach((i,x)=>{
-    const o=outs[x];let res=i.s;
-    if(o){const r=restore(o,i.m);if(r!==null)res=r}
-    cache.set(sl+tl+i.s,res);
-  });
-}
-async function translateRefs(refs,sl,tl,onFrac){
-  const seen=new Set(),items=[];
-  for(const [o,k] of refs){
-    const s=o[k];
-    if(typeof s!=='string')continue;
-    const key=sl+tl+s;
-    if(cache.has(key)||seen.has(s))continue;
-    seen.add(s);
-    if(!/\p{L}/u.test(s.replace(CC,''))){cache.set(key,s);continue}
-    const {t,m}=protect(s);
-    items.push({s,t,m});
-  }
-  const batches=[];let cur=[],len=0;
-  for(const it of items){
-    if(cur.length&&(cur.length>=30||len+it.t.length>2500)){batches.push(cur);cur=[];len=0}
-    cur.push(it);len+=it.t.length;
-  }
-  if(cur.length)batches.push(cur);
-  let done=0;
-  onFrac(batches.length?0:1);
-  await Promise.all(batches.map(async b=>{await translateBatch(b,sl,tl);done++;onFrac(done/batches.length)}));
-  for(const [o,k] of refs){
-    const s=o[k];
-    if(typeof s!=='string')continue;
-    const r=cache.get(sl+tl+s);
-    if(r!==undefined)o[k]=r;
-  }
-}
-
-function collect(node,out,keys){
-  if(Array.isArray(node)){node.forEach(n=>collect(n,out,keys));return}
-  if(!node||typeof node!=='object')return;
-  if(typeof node.code==='number'&&Array.isArray(node.parameters)){
-    const p=node.parameters;
-    if((node.code===401||node.code===405)&&typeof p[0]==='string')out.push([p,0]);
-    else if(node.code===402&&typeof p[1]==='string')out.push([p,1]);
-    else if(node.code===102&&Array.isArray(p[0]))p[0].forEach((v,i)=>{if(typeof v==='string')out.push([p[0],i])});
-    return;
-  }
-  for(const k in node){
-    const v=node[k];
-    if(typeof v==='string'){if(keys.has(k))out.push([node,k])}
-    else if(v&&typeof v==='object')collect(v,out,keys);
-  }
-}
-function collectAllStrings(node,out){
-  if(Array.isArray(node))node.forEach((v,i)=>typeof v==='string'?out.push([node,i]):collectAllStrings(v,out));
-  else if(node&&typeof node==='object')for(const k in node){const v=node[k];typeof v==='string'?out.push([node,k]):collectAllStrings(v,out)}
-}
-function gather(base,data){
-  const out=[];
-  if(DB.test(base))collect(data,out,DBKEYS);
-  else if(base==='System'){
-    for(const k of ['gameTitle','currencyUnit'])if(typeof data[k]==='string')out.push([data,k]);
-    if(data.terms)collectAllStrings(data.terms,out);
-  }else collect(data,out,new Set(['displayName']));
-  return out;
-}
-async function pool(items,n,fn){
-  let i=0;
-  await Promise.all(Array.from({length:n},async()=>{while(i<items.length){const j=i++;await fn(items[j],j)}}));
-}
-
-/* ---------- tampilan ---------- */
-function setProgress(fi,total,frac,name){
-  const p=(fi+frac)/total*100;
-  $('bar').value=p;
-  $('pct').textContent=p.toFixed(1)+'%';
-  $('sub').textContent='File '+(fi+1)+' dari '+total+' · '+name+' ('+Math.round(frac*100)+'%)';
-}
-function refreshDl(){
-  const n=results.size;
-  $('dl').disabled=n===0;
-  $('dl').textContent=n?('2. Unduh Hasil ('+n+' file) → Download/'+FOLDER):'2. Unduh Hasil (belum ada)';
-}
-
-$('go').onclick=async()=>{
-  const files=[...$('files').files];
-  if(!files.length){log('Pilih file JSON dulu.');return}
-  const sl=$('sl').value,tl=$('tl').value;
-  $('go').disabled=true;$('dl').disabled=true;
-  results.clear();
-  try{if(navigator.wakeLock)await navigator.wakeLock.request('screen')}catch(e){}
-  const t0=Date.now();
-  const prog=new Array(files.length).fill(0);
-  let finished=0,bad=0;
-  const upd=()=>{
-    const p=prog.reduce((a,b)=>a+b,0)/files.length*100;
-    $('bar').value=p;
-    $('pct').textContent=p.toFixed(1)+'%';
-    const el=(Date.now()-t0)/1000;
-    let eta='';
-    if(p>1.5){const rem=el/p*(100-p);eta=' · sisa ±'+(rem>=90?Math.round(rem/60)+' mnt':Math.round(rem)+' dtk')}
-    $('sub').textContent=finished+' dari '+files.length+' file selesai'+eta+' · '+(batchOK?'mode cepat':'mode satuan');
-  };
-  upd();
-  await pool(files.map((_,i)=>i),3,async fi=>{
-    const f=files[fi];
-    const base=f.name.replace(/\.json$/i,'');
-    try{
-      const data=JSON.parse(await f.text());
-      const refs=gather(base,data);
-      await translateRefs(refs,sl,tl,fr=>{prog[fi]=fr*0.98;upd()});
-      results.set(f.name,JSON.stringify(data));
-      log('OK  '+f.name+' ('+refs.length+' teks)');
-    }catch(e){bad++;log('GAGAL '+f.name+': '+e.message)}
-    prog[fi]=1;finished++;upd();
-  });
-  const mins=((Date.now()-t0)/60000).toFixed(1);
-  $('bar').value=100;$('pct').textContent='100%';
-  $('sub').textContent='Terjemahan selesai ('+mins+' menit): '+results.size+' file siap'+(bad?(', '+bad+' gagal'):'');
-  log('\nSelesai. Tekan tombol hijau "Unduh Hasil".');
-  refreshDl();
-  $('go').disabled=false;
-};
-
-$('dl').onclick=async()=>{
-  const names=[...results.keys()];
-  if(!names.length)return;
-  $('go').disabled=true;$('dl').disabled=true;
-  let ok=0,bad=0,lastErr='';
-  for(let i=0;i<names.length;i++){
-    const n=names[i];
-    $('bar').value=(i/names.length)*100;
-    $('pct').textContent=Math.round(i/names.length*100)+'%';
-    $('sub').textContent='Menyimpan '+(i+1)+' dari '+names.length+' · '+n;
-    try{await save(n,results.get(n));results.delete(n);ok++}
-    catch(e){bad++;lastErr=e.message||String(e);log('GAGAL simpan '+n+': '+lastErr)}
-  }
-  $('bar').value=100;$('pct').textContent='100%';
-  $('sub').textContent=ok+' file tersimpan di Download/'+FOLDER+(bad?(' · '+bad+' gagal'):'');
-  log('\n'+ok+' file tersimpan di Download/'+FOLDER+(bad?('\n'+bad+' gagal, tekan Unduh lagi. Error: '+lastErr):''));
-  refreshDl();
-  $('go').disabled=false;
-};
-
-log('Capacitor: '+(window.Capacitor?'ada':'TIDAK ADA')+' · jembatan native: '+((window.Capacitor&&window.Capacitor.nativePromise)?'ada':'tidak'));
-</script>
-</body>
-</html>
+const OTH={},enc=new TextEncoder();const $=id=>document.getElementById(id);let files=[],ctl=null;
+const msg=t=>$("msg").textContent=t;
+/* ---- tema & background ---- */
+const store={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v);return true}catch(e){return false}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+const getP=()=>{const C=window.Capacitor;if(!C)return null;try{if(typeof C.registerPlugin==="function")return C.registerPlugin("DownloadSaver")}catch(e){}
+ if(C.Plugins&&C.Plugins.DownloadSaver)return C.Plugins.DownloadSaver;
+ if(typeof C.nativePromise==="function")return new Proxy({},{get:(_,m)=>m==="then"?undefined:o=>C.nativePromise("DownloadSaver",String(m),o||{})});return null};
+function setBg(u){document.body.style.backgroundImage=u?`linear-gradient(rgba(0,0,0,.28),rgba(0,0,0,.28)),url(${u})`:""}
+setBg(store.get("bg"));if(store.get("th"))document.documentElement.dataset.theme=store.get("th");
+$("mbtn").onclick=e=>{e.stopPropagation();$("menu").classList.toggle("open")};
+document.addEventListener("click",()=>$("menu").classList.remove("open"));
+const modeTxt=()=>{$("modeBtn").textContent=store.get("mode")==="bg"?"📲 Mode: latar belakang (ketuk untuk browser)":"🌐 Mode: browser (ketuk untuk latar belakang)"};modeTxt();
+$("modeBtn").onclick=()=>{store.set("mode",store.get("mode")==="bg"?"web":"bg");modeTxt()};
+$("bgBtn").onclick=()=>$("bgIn").click();
+$("bgReset").onclick=()=>{setBg("");store.del("bg")};
+$("thBtn").onclick=()=>{const d=document.documentElement,dark=d.dataset.theme?d.dataset.theme==="dark":matchMedia("(prefers-color-scheme:dark)").matches;d.dataset.theme=dark?"light":"dark";store.set("th",d.dataset.theme)};
+$("bgIn").onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const s=Math.min(1,1400/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);const d=c.toDataURL("image/jpeg",.8);setBg(d);store.set("bg",d);URL.revokeObjectURL(u)};im.src=u};
+/* ---- RPA ---- */
+function unpickle(b){let p=0,st=[],mk=[],memo=[];const dv=new DataView(b.buffer,b.byteOffset,b.byteLength),td=new TextDecoder("latin1"),td8=new TextDecoder(),top=()=>st[st.length-1];
+ const str=n=>{const s=td.decode(b.subarray(p,p+n));p+=n;return s};
+ for(;;){const o=b[p++];switch(o){
+ case 0x80:p++;break;case 0x95:p+=8;break;
+ case 125:st.push(new Map);break;case 93:case 41:st.push([]);break;case 40:mk.push(st.length);break;
+ case 88:{const n=dv.getUint32(p,true);p+=4;st.push(td8.decode(b.subarray(p,p+n)));p+=n;break}
+ case 0x8c:{const n=b[p++];st.push(td8.decode(b.subarray(p,p+n)));p+=n;break}
+ case 85:{const n=b[p++];st.push(str(n));break}
+ case 67:{const n=b[p++];st.push(str(n));break}
+ case 66:{const n=dv.getUint32(p,true);p+=4;st.push(str(n));break}
+ case 0x8b:{const n=dv.getUint32(p,true);p+=4;let v=0;for(let i=n-1;i>=0;i--)v=v*256+b[p+i];p+=n;st.push(v);break}
+ case 71:p+=8;st.push(0);break;case 0x88:st.push(true);break;case 0x89:st.push(false);break;
+ case 84:{const n=dv.getUint32(p,true);p+=4;st.push(str(n));break}
+ case 74:st.push(dv.getInt32(p,true));p+=4;break;case 75:st.push(b[p++]);break;case 77:st.push(dv.getUint16(p,true));p+=2;break;
+ case 0x8a:{const n=b[p++];let v=0;for(let i=n-1;i>=0;i--)v=v*256+b[p+i];p+=n;st.push(v);break}
+ case 113:memo[b[p++]]=top();break;case 114:memo[dv.getUint32(p,true)]=top();p+=4;break;
+ case 104:st.push(memo[b[p++]]);break;case 106:st.push(memo[dv.getUint32(p,true)]);p+=4;break;case 0x94:memo.push(top());break;
+ case 97:{const v=st.pop();top().push(v);break}
+ case 101:{const m=mk.pop(),it=st.splice(m);top().push(...it);break}
+ case 115:{const v=st.pop(),k=st.pop();top().set(k,v);break}
+ case 117:{const m=mk.pop(),it=st.splice(m);for(let i=0;i<it.length;i+=2)top().set(it[i],it[i+1]);break}
+ case 116:{const m=mk.pop();st.push(st.splice(m));break}
+ case 0x85:st.push([st.pop()]);break;case 0x86:{const y=st.pop(),x=st.pop();st.push([x,y]);break}
+ case 0x87:{const z=st.pop(),y=st.pop(),x=st.pop();st.push([x,y,z]);break}
+ case 99:{const ln=()=>{let t="";while(b[p]!==10)t+=String.fromCharCode(b[p++]);p++;return t};const m=ln(),n=ln();st.push({g:m+"."+n});break}
+ case 0x93:{const n=st.pop(),m=st.pop();st.push({g:m+"."+n});break}
+ case 82:{const ar=st.pop(),f=st.pop();st.push(f&&f.g==="_codecs.encode"?(Array.isArray(ar)?String(ar[0]):""):null);break}
+ case 0x81:{const ar=st.pop();st.pop();st.push(null);break}
+ case 48:st.pop();break;case 50:st.push(top());break;
+ case 78:st.push(null);break;case 46:return st.pop();
+ default:throw new Error("Opcode pickle tidak didukung: "+o)}}}
+async function readRpa(buf){const u=new Uint8Array(buf);let e=u.indexOf(10);const h=new TextDecoder("latin1").decode(u.subarray(0,e)).split(" ");
+ if(!/^RPA-[23]/.test(h[0]))throw new Error("Bukan arsip RPA 2/3");
+ const off=parseInt(h[1],16),key=h[0]==="RPA-3.0"?parseInt(h[2],16):0;
+ const ds=new Blob([u.subarray(off)]).stream().pipeThrough(new DecompressionStream("deflate"));
+ const idx=unpickle(new Uint8Array(await new Response(ds).arrayBuffer())),out=[],rpycs=[],others=[];let skipped=0;
+ const names=new Set([...idx.keys()]);
+ for(const [name,v] of idx){const isRpy=/\.rpy$/i.test(name),isRpyc=/\.rpyc$/i.test(name);
+  const [o,l,pre]=v[0],s=(o^key)>>>0,n=(l^key)>>>0;let bytes=u.subarray(s,s+n-(pre?pre.length:0));
+  if(pre){const pb=Uint8Array.from(pre,c=>c.charCodeAt(0));const t=new Uint8Array(pb.length+bytes.length);t.set(pb);t.set(bytes,pb.length);bytes=t}
+  if(isRpy)out.push({name,text:new TextDecoder().decode(bytes)});
+  else if(isRpyc){if(names.has(name.slice(0,-1)))skipped++;else rpycs.push({name,bytes})}
+  else others.push({name,bytes})}
+ return {out,rpycs,others,skipped}}
+/* ---- RPYC (script compiled) ---- */
+/* unpickler yang membangun objek: kelas Ren'Py jadi {__c:"renpy.ast.Say", ...field} */
+function unpickleObj(b){let p=0;const st=[],mk=[],memo=[],dv=new DataView(b.buffer,b.byteOffset,b.byteLength),U8=new TextDecoder("utf-8"),L1=new TextDecoder("latin1");
+ const top=()=>st[st.length-1],r32=()=>{const v=dv.getUint32(p,true);p+=4;return v};
+ const isO=o=>o&&typeof o==="object"&&!Array.isArray(o)&&!(o instanceof Map)&&("__c" in o);
+ const setI=(t,k,v)=>{if(t instanceof Map)t.set(k,v);else if(isO(t))(t.__m||(t.__m=new Map)).set(k,v)};
+ const addI=(t,v)=>{if(Array.isArray(t))t.push(v);else if(isO(t))(t.__a||(t.__a=[])).push(v)};
+ const big=n=>{let v=0;for(let i=n-1;i>=0;i--)v=v*256+b[p+i];if(n&&(b[p+n-1]&128))v-=Math.pow(256,n);p+=n;return v};
+ const mkO=(c,a)=>({__c:(c&&c.g)||"?",__args:a});
+ const bytesS=n=>{const s=L1.decode(b.subarray(p,p+n));p+=n;return s};
+ const utf=n=>{const s=U8.decode(b.subarray(p,p+n));p+=n;return s};
+ for(;;){const o=b[p++];switch(o){
+ case 0x80:p++;break;case 0x95:p+=8;break;
+ case 40:mk.push(st.length);break;
+ case 46:return st.pop();
+ case 48:st.pop();break;
+ case 49:{const m=mk.pop();st.length=m;break}
+ case 50:st.push(top());break;
+ case 78:st.push(null);break;
+ case 0x88:st.push(true);break;case 0x89:st.push(false);break;
+ case 74:st.push(dv.getInt32(p,true));p+=4;break;
+ case 75:st.push(b[p++]);break;
+ case 77:st.push(dv.getUint16(p,true));p+=2;break;
+ case 0x8a:{const n=b[p++];st.push(big(n));break}
+ case 0x8b:{const n=r32();st.push(big(n));break}
+ case 71:st.push(dv.getFloat64(p,false));p+=8;break;
+ case 88:{const n=r32();st.push(utf(n));break}
+ case 0x8c:{const n=b[p++];st.push(utf(n));break}
+ case 84:{const n=r32();st.push(utf(n));break}
+ case 85:{const n=b[p++];st.push(utf(n));break}
+ case 67:{const n=b[p++];st.push(bytesS(n));break}
+ case 66:{const n=r32();st.push(bytesS(n));break}
+ case 125:st.push(new Map);break;
+ case 93:case 41:case 0x8f:st.push([]);break;
+ case 116:{const m=mk.pop();st.push(st.splice(m));break}
+ case 0x91:{const m=mk.pop();st.push(st.splice(m));break}
+ case 0x85:st.push([st.pop()]);break;
+ case 0x86:{const y=st.pop(),x=st.pop();st.push([x,y]);break}
+ case 0x87:{const z=st.pop(),y=st.pop(),x=st.pop();st.push([x,y,z]);break}
+ case 97:{const v=st.pop();addI(top(),v);break}
+ case 101:case 0x90:{const m=mk.pop(),it=st.splice(m),t=top();it.forEach(v=>addI(t,v));break}
+ case 115:{const v=st.pop(),k=st.pop();setI(top(),k,v);break}
+ case 117:{const m=mk.pop(),it=st.splice(m),t=top();for(let i=0;i<it.length;i+=2)setI(t,it[i],it[i+1]);break}
+ case 99:{const ln=()=>{let t="";while(b[p]!==10)t+=String.fromCharCode(b[p++]);p++;return t};const m=ln(),n=ln();st.push({g:m+"."+n});break}
+ case 0x93:{const n=st.pop(),m=st.pop();st.push({g:m+"."+n});break}
+ case 82:{const a=st.pop(),f=st.pop(),g=(f&&f.g)||"";
+  if(g==="_codecs.encode")st.push(Array.isArray(a)?String(a[0]):"");
+  else if(/_reconstructor$/.test(g))st.push(mkO(Array.isArray(a)?a[0]:null,[]));
+  else if(/PyExpr$/.test(g))st.push(Array.isArray(a)&&typeof a[0]==="string"?a[0]:"");
+  else if(/(^|\.)(set|frozenset)$/.test(g))st.push(Array.isArray(a)&&Array.isArray(a[0])?a[0]:[]);
+  else if(/OrderedDict$/.test(g))st.push(new Map);
+  else st.push(mkO(f,a));break}
+ case 0x81:{const a=st.pop(),c=st.pop(),g=(c&&c.g)||"";
+  st.push(/PyExpr$/.test(g)||/^(__builtin__|builtins)\.(str|unicode)$/.test(g)?(Array.isArray(a)&&typeof a[0]==="string"?a[0]:""):mkO(c,a));break}
+ case 0x92:{st.pop();const a=st.pop(),c=st.pop(),g=(c&&c.g)||"";
+  st.push(/PyExpr$/.test(g)?(Array.isArray(a)&&typeof a[0]==="string"?a[0]:""):mkO(c,a));break}
+ case 98:{const s=st.pop(),ob=top();
+  if(isO(ob)){const mg=m=>{if(m instanceof Map)for(const [k,v] of m)if(typeof k==="string"&&k!=="__c")ob[k]=v};
+   if(s instanceof Map)mg(s);
+   else if(Array.isArray(s)&&s.length===2&&(s[0]===null||s[0] instanceof Map)&&s[1] instanceof Map){mg(s[0]);mg(s[1])}
+   else ob.__s=s}
+  break}
+ case 113:memo[b[p++]]=top();break;
+ case 114:memo[r32()]=top();break;
+ case 104:st.push(memo[b[p++]]);break;
+ case 106:st.push(memo[r32()]);break;
+ case 0x94:memo.push(top());break;
+ default:throw new Error("Opcode pickle tidak didukung: "+o+" @"+(p-1))}}}
+async function inflate(u){return new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer())}
+/* ambil teks dialog / menu / _("...") dari satu file .rpyc */
+async function rpycTexts(buf){const u=buf instanceof Uint8Array?buf:new Uint8Array(buf);let data;
+ if(new TextDecoder("latin1").decode(u.subarray(0,10))==="RENPY RPC2"){
+  const dv=new DataView(u.buffer,u.byteOffset,u.byteLength);let p=10,sl=null;
+  while(p+12<=u.length){const s=dv.getUint32(p,true),a=dv.getUint32(p+4,true),l=dv.getUint32(p+8,true);p+=12;if(s===0)break;if(s===1)sl=[a,l]}
+  if(!sl)throw new Error("data script tidak ditemukan");
+  data=await inflate(u.subarray(sl[0],sl[0]+sl[1]))}
+ else data=await inflate(u);
+ const root=unpickleObj(data),out=[],seenT=new Set(),seen=new Set(),stack=[root];
+ const add=s=>{if(typeof s!=="string"||!s.trim()||seenT.has(s))return;if(!/\p{L}/u.test(s.replace(/\{[^}]*\}|\[[^\]]*\]/g,"")))return;seenT.add(s);out.push(s)};
+ while(stack.length){const n=stack.pop();if(!n||typeof n!=="object"||seen.has(n))continue;seen.add(n);let kids;
+  if(Array.isArray(n))kids=n;
+  else if(n instanceof Map)kids=[...n.values()];
+  else{const c=n.__c||"";
+   if(/\.(Say|TranslateSay)$/.test(c))add(n.what);
+   else if(/\.Menu$/.test(c)&&Array.isArray(n.items))n.items.forEach(it=>{if(Array.isArray(it))add(it[0])});
+   else if(/\.PyCode$/.test(c)&&Array.isArray(n.__s)&&typeof n.__s[1]==="string"){const re=/\b_\(\s*(["'])((?:(?!\1)[^\\\n])+)\1\s*\)/g;let m;while((m=re.exec(n.__s[1])))add(m[2])}
+   kids=[];for(const k in n)if(k!=="__c")kids.push(n[k])}
+  for(let i=kids.length-1;i>=0;i--){const k=kids[i];if(k&&typeof k==="object")stack.push(k)}}
+ return out}
+const lit=s=>s.replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\r?\n/g,"\\n");
+const parseRpyc=(name,texts)=>({name,lines:[],rpyc:true,items:texts.map((s,i)=>({i,pre:"",t:lit(s),post:"",tr:""}))});
+/* ---- parsing .rpy ---- */
+const DLG=/^(\s*(?:[A-Za-z_][\w.]*\s+(?:@\s*\w+\s+)?)?)"((?:[^"\\]|\\.)*)"(\s*(?:with\s+\w+\s*)?)$/,MENU=/^(\s*)"((?:[^"\\]|\\.)*)"(\s*(?:if\s.+)?:\s*)$/,UND=/_\("((?:[^"\\]|\\.)*)"\)/;
+const ok=t=>/\p{L}/u.test(t)&&!/\.(png|jpg|webp|ogg|mp3|wav|rpy|ttf|webm)$/i.test(t)&&!/^[\w\/.-]+$/.test(t)||/\s/.test(t)&&/\p{L}/u.test(t);
+function parse(name,text){const lines=text.split(/\r?\n/),items=[];
+ lines.forEach((ln,i)=>{if(/^\s*#/.test(ln))return;let m,pre,t,post;
+  if((m=ln.match(UND))){pre=ln.slice(0,m.index)+'_("';t=m[1];post='")'+ln.slice(m.index+m[0].length)}
+  else if((m=ln.match(MENU)||ln.match(DLG))){if(/^\s*(define|default|image|scene|show|play|stop|jump|call|label|python|\$)\b/.test(ln))return;pre=m[1]+'"';t=m[2];post='"'+m[3]}
+  else return;
+  if(ok(t))items.push({i,pre,t,post,tr:""})});
+ return {name,lines,items}}
+const tick=()=>new Promise(r=>setTimeout(r,0));
+async function addFiles(list){msg("Membaca file…");
+ for(const f of list){try{
+  if(/\.rpa$/i.test(f.name)){const {out,rpycs,others:ot,skipped}=await readRpa(await f.arrayBuffer());
+   OTH[f.name]=ot;
+   const tlSkip=out.filter(o=>/^tl\//i.test(o.name)).length;out.filter(o=>!/^tl\//i.test(o.name)).forEach(o=>files.push(Object.assign(parse(f.name+"/"+o.name,o.text),{src:f.name,inner:o.name})));
+   const rl=rpycs.filter(o=>!/^tl\//i.test(o.name));let rc=0,rt=0,rb=0,re="";
+   for(let i=0;i<rl.length;i++){const r=rl[i];msg(`Membaca .rpyc ${i+1}/${rl.length}…`);await tick();
+    try{const tx=await rpycTexts(r.bytes);if(tx.length){files.push(Object.assign(parseRpyc(f.name+"/"+r.name,tx),{src:f.name,inner:r.name}));rc++;rt+=tx.length}}
+    catch(e){rb++;re=(e&&e.message)||String(e)}}
+   msg(`RPA: ${out.length-tlSkip} file .rpy diekstrak.`+(rl.length?` ${rc} dari ${rl.length} file .rpyc berisi teks (${rt} teks).`+(rb?` ${rb} gagal dibaca [${re}].`:""):"")+(tlSkip?` ${tlSkip} file folder tl/ (terjemahan bawaan) dilewati.`:"")+(skipped?` ${skipped} file .rpyc (duplikat dari .rpy) tidak ikut dibuat ulang.`:"")+(!out.length&&!rpycs.length?` Isi arsip: ${ot.length} file lain, contoh: ${ot.slice(0,3).map(x=>x.name).join(", ")}.`:""))}
+  else if(/\.rpyc$/i.test(f.name)){const tx=await rpycTexts(await f.arrayBuffer()),pr=parseRpyc(f.name,tx);files.push(pr);
+   msg(`${f.name}: ${tx.length} teks ditemukan.`+(tx.length?"":" Tidak ada dialog di file ini."))}
+  else{await tick();const t0=Date.now(),pr=parse(f.name,await f.text());files.push(pr);
+   msg(`${f.name}: ${pr.lines.length} baris dibaca, ${pr.items.length} teks ditemukan (${((Date.now()-t0)/1000).toFixed(1)} dtk
