@@ -243,4 +243,111 @@ async function addFiles(list){msg("Membaca file…");
   else if(/\.rpyc$/i.test(f.name)){const tx=await rpycTexts(await f.arrayBuffer()),pr=parseRpyc(f.name,tx);files.push(pr);
    msg(`${f.name}: ${tx.length} teks ditemukan.`+(tx.length?"":" Tidak ada dialog di file ini."))}
   else{await tick();const t0=Date.now(),pr=parse(f.name,await f.text());files.push(pr);
-   msg(`${f.name}: ${pr.lines.length} baris dibaca, ${pr.items.length} teks ditemukan (${((Date.now()-t0)/1000).toFixed(1)} dtk
+   msg(`${f.name}: ${pr.lines.length} baris dibaca, ${pr.items.length} teks ditemukan (${((Date.now()-t0)/1000).toFixed(1)} dtk).`+(pr.items.length?"":" Tidak ada dialog yang cocok: file kosong, hanya berisi terjemahan kosong, atau formatnya tidak umum."))}}catch(e){msg("Gagal membaca "+f.name+": "+e.message)}}
+ render()}
+const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+function render(){const n=files.reduce((a,f)=>a+f.items.length,0),d=files.reduce((a,f)=>a+f.items.filter(x=>x.tr).length,0);
+ $("files").innerHTML=files.map(f=>`<div class="file"><span>${esc(f.name)}</span><span>${f.items.filter(x=>x.tr).length}/${f.items.length} baris</span></div>`).join("");
+ $("go").disabled=!n||!!ctl;$("dl").disabled=!d;$("pb").style.width=n?d/n*100+"%":"0";
+ const all=[];files.forEach((f,fi)=>f.items.slice(0,150).forEach((x,xi)=>{if(all.length<300)all.push([fi,xi,x])}));
+ $("tbl").innerHTML=all.length?all.map(([a,b,x])=>`<div class="it"><div>${esc(x.t)}</div><textarea data-a="${a}" data-b="${b}">${esc(x.tr)}</textarea></div>`).join("")+(n>300?`<div class="it">…pratinjau 300 baris pertama; semuanya tetap diterjemahkan.</div>`:""):'<div class="it" style="color:var(--mu)">Belum ada teks.</div>'}
+$("tbl").oninput=e=>{const t=e.target;if(t.dataset.a)files[t.dataset.a].items[t.dataset.b].tr=t.value;$("dl").disabled=false};
+/* ---- terjemah otomatis ---- */
+const ft=(url,ms=10000)=>{const c=new AbortController(),t=setTimeout(()=>c.abort(new Error("timeout")),ms);if(ctl)ctl.signal.addEventListener("abort",()=>c.abort());return fetch(url,{signal:c.signal}).finally(()=>clearTimeout(t))};
+const PV=[
+ ["Google",async(q,l)=>{const r=await ft("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl="+l+"&dt=t&q="+encodeURIComponent(q));if(!r.ok)throw new Error(r.status);const j=await r.json();return j[0].map(x=>x[0]).join("")}],
+ ["Google2",async(q,l)=>{const r=await ft("https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl="+l+"&q="+encodeURIComponent(q));if(!r.ok)throw new Error(r.status);const j=await r.json();if(j.sentences)return j.sentences.map(s=>s.trans||"").join("");if(Array.isArray(j))return Array.isArray(j[0])?j[0][0]:j[0];throw new Error("format")}],
+ ["MyMemory",async(q,l)=>{const ps=q.match(/[^.!?]+[.!?]*\s*/g)||[q],ls=[];let c="";ps.forEach(p=>{if((c+p).length>400&&c){ls.push(c);c=p}else c+=p});if(c)ls.push(c);let o="";for(const x of ls){const r=await ft("https://api.mymemory.translated.net/get?q="+encodeURIComponent(x)+"&langpair=en|"+l);if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.responseData||j.responseStatus!=200)throw new Error(j.responseStatus+" "+(j.responseDetails||""));o+=j.responseData.translatedText}return o}],
+ ["Lingva",async(q,l)=>{const r=await ft("https://lingva.ml/api/v1/auto/"+l+"/"+encodeURIComponent(q));if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.translation)throw new Error("kosong");return j.translation}]
+];let pv=0,lastErr="";
+const tr1=async(t,lang)=>{const ph=[];const q=t.replace(/\{[^}]*\}|\[[^\]]*\]|%%|\\n/g,m=>{ph.push(m);return "QX"+(ph.length-1)+"X"});
+ let out=null;const errs=[];
+ for(let n=0;n<PV.length&&out===null;n++){const k=(pv+n)%PV.length;try{const o=await PV[k][1](q,lang);if(o&&o.trim()){out=o;pv=k}else errs.push(PV[k][0]+": kosong")}catch(e){errs.push(PV[k][0]+": "+((e&&e.message)||String(e)))}}
+ if(out===null){lastErr=errs.join(" | ");throw new Error(lastErr)}
+ return out.replace(/QX\s*(\d+)\s*X/gi,(m,n)=>ph[n]??m)};
+$("go").onclick=async()=>{const todo=[];files.forEach(f=>f.items.forEach(x=>{if(!x.tr)todo.push(x)}));if(!todo.length)return;
+  ctl=new AbortController();$("stop").disabled=false;$("go").disabled=true;const lang=$("lang").value;let fail=0,note="";
+  const fix=s=>s.replace(/\r?\n/g,"\\n").replace(/(^|[^\\])"/g,'$1\\"');
+  const groups=new Map();todo.forEach(x=>{if(!groups.has(x.t))groups.set(x.t,[]);groups.get(x.t).push(x)});
+  const keys=[...groups.keys()],phs=[],qs=keys.map(t=>{const ph=[];phs.push(ph);return t.replace(/\{[^}]*\}|\[[^\]]*\]|%%|\\n/g,m=>{ph.push(m);return "QX"+(ph.length-1)+"X"})});
+  const apply=(i,o)=>{if(typeof o!=="string"||!o.trim())return;const v=fix(o.replace(/QX\s*(\d+)\s*X/gi,(m,n)=>phs[i][n]??m));groups.get(keys[i]).forEach(x=>x.tr=v)};
+  const C=window.Capacitor;let P=null,started=false;msg("Memulai… "+keys.length+" teks unik");let wl=null;try{navigator.wakeLock&&navigator.wakeLock.request("screen").then(l=>wl=l,()=>{})}catch(e){}
+  if(C&&C.isNativePlatform&&C.isNativePlatform()&&store.get("mode")==="bg"){P=getP();if(!P)note="⚠️ Plugin native tidak ditemukan, pakai mode browser. ";
+   if(P)try{const sp=P.startTranslate({texts:qs,lang});let done0=false,err0=null;sp.then(()=>done0=true,e=>err0=e||new Error("ditolak"));const t0=Date.now();
+    while(!done0){await new Promise(r=>setTimeout(r,700));if(err0)throw err0;if(done0)break;const el=Math.round((Date.now()-t0)/1000);
+     msg(`Mengirim ${qs.length} teks ke layanan latar belakang… ${el} dtk`);
+     try{const s0=await Promise.race([P.status(),new Promise(r=>setTimeout(()=>r(null),600))]);if(s0&&!s0.finished&&s0.total>0)break}catch(e){}
+     if(el>=25)throw new Error("tidak merespons 25 detik")}
+    started=true}catch(e){note="⚠️ Mode latar belakang gagal ("+((e&&e.message)||e)+"), pakai mode browser. ";msg(note)}}
+  if(started){let applied=0,st={failed:0};
+   const fetchTo=async to=>{while(applied<to){const e=Math.min(applied+500,to),r=await P.results({from:applied,to:e});r.items.forEach((o,k)=>apply(applied+k,o));applied=e}};
+   try{for(;;){st=await P.status();if(ctl.signal.aborted&&!st.finished)await P.stopTranslate();
+     await fetchTo(st.finished?st.total:st.prefix);msg(`Menerjemahkan ${st.done}/${st.total}`+(st.total?` (${Math.round(st.done/st.total*100)}%)`:"")+` · gagal ${st.failed||0} · berjalan di latar belakang, lihat juga notifikasi`);render();
+     if(st.finished)break;await new Promise(r=>setTimeout(r,1000))}}catch(e){msg("Error: "+(e.message||e))}
+   fail=st.failed||0}
+  else{let n=0,k=0,last=0,okN=0,netdead=false;msg(note+"Menerjemahkan 0/"+todo.length+"… (mode browser, biarkan layar tetap menyala)");const batches=[];let cur=[],len=0;
+   for(const t of keys.map((q,i)=>keys[i])){if(cur.length&&(len+t.length>1500||cur.length>=30)){batches.push(cur);cur=[];len=0}cur.push(t);len+=t.length+1}
+   if(cur.length)batches.push(cur);
+   const put=(t,o)=>{const v=fix(o);groups.get(t).forEach(x=>x.tr=v);n+=groups.get(t).length;okN+=groups.get(t).length};
+   const worker=async()=>{while(k<batches.length&&!ctl.signal.aborted&&!netdead){const b=batches[k++];let ok=false,dead=false;
+    if(b.length>1){try{const o=(await tr1(b.join("\n"),lang)).split(/\r?\n/);if(o.length===b.length){b.forEach((t,i)=>put(t,o[i]));ok=true}}catch(e){dead=/timeout|Failed to fetch|NetworkError|abort|Load failed/i.test((e&&e.message)||"")}}
+    if(!ok&&dead){netdead=true;break}
+    if(!ok)for(const t of b){try{put(t,await tr1(t,lang))}catch(e){fail+=groups.get(t).length;n+=groups.get(t).length}}
+    if(Date.now()-last>1500){last=Date.now();msg(note+`Menerjemahkan ${n}/${todo.length} (${Math.round(n/todo.length*100)}%) · gagal ${fail} · biarkan layar menyala`);render()}}};
+   await Promise.all([1,2,3,4,5,6,7,8,9,10].map(worker));if(netdead){fail=todo.length-okN;note+="⚠️ Tidak bisa menghubungi layanan terjemahan ("+lastErr.slice(0,140)+"). Periksa internet/VPN. "}}
+  try{wl&&wl.release()}catch(e){}
+  msg(note+(ctl.signal.aborted?"Dihentikan.":fail?`Selesai, ${fail} baris gagal`+(lastErr?` [${lastErr.slice(0,160)}]`:"")+`. Tekan Terjemahkan lagi untuk mengulang yang gagal.`:"Selesai ✅ Periksa hasilnya lalu unduh."));
+  ctl=null;$("stop").disabled=true;render()};
+$("stop").onclick=()=>ctl&&ctl.abort();
+/* ---- gabung & ZIP ---- */
+function merged(f){const by=new Map(f.items.map(x=>[x.i,x]));const o=[`# Digabung oleh Ren'Py Translator: baris asli = komentar (#), terjemahan di bawahnya`];
+ f.lines.forEach((ln,i)=>{const x=by.get(i);if(x&&x.tr){o.push("# "+ln.trim(),x.pre+x.tr+x.post)}else o.push(ln)});return o.join("\n")}
+/* .rpyc -> file terjemahan gaya Ren'Py: translate <bahasa> strings (old/new) */
+const LN={id:"indonesian",en:"english",ja:"japanese",ko:"korean","zh-CN":"schinese",es:"spanish",fr:"french",de:"german",ru:"russian",pt:"portuguese"};
+const fixq=s=>s.replace(/\r?\n/g,"\\n").replace(/(?<!\\)"/g,'\\"');
+function mergedTl(f,lang,seen){const o=[`# Dibuat oleh Ren'Py Translator dari ${f.name}`,`translate ${lang} strings:`];let n=0;
+ f.items.forEach(x=>{if(!x.tr||seen.has(x.t))return;seen.add(x.t);o.push("",`    old "${x.t}"`,`    new "${fixq(x.tr)}"`);n++});
+ return n?o.join("\n")+"\n":null}
+const CT=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^c>>>1:c>>>1;t[n]=c>>>0}return t})();
+const crc=u=>{let c=~0;for(const b of u)c=CT[(c^b)&255]^c>>>8;return ~c>>>0};
+function zip(ents){const te=new TextEncoder(),parts=[],cd=[];let off=0;
+ for(const e of ents){const nm=te.encode(e.name),d=te.encode(e.data),c=crc(d);
+  const lh=new DataView(new ArrayBuffer(30));lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x800,true);lh.setUint32(14,c,true);lh.setUint32(18,d.length,true);lh.setUint32(22,d.length,true);lh.setUint16(26,nm.length,true);
+  parts.push(lh,nm,d);
+  const ch=new DataView(new ArrayBuffer(46));ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x800,true);ch.setUint32(16,c,true);ch.setUint32(20,d.length,true);ch.setUint32(24,d.length,true);ch.setUint16(28,nm.length,true);ch.setUint32(42,off,true);
+  cd.push(ch,nm);off+=30+nm.length+d.length}
+ const cs=cd.reduce((a,x)=>a+(x.byteLength),0),end=new DataView(new ArrayBuffer(22));end.setUint32(0,0x06054b50,true);end.setUint16(8,ents.length,true);end.setUint16(10,ents.length,true);end.setUint32(12,cs,true);end.setUint32(16,off,true);
+ return new Blob([...parts,...cd,end],{type:"application/zip"})}
+const b64u=u=>{let r="";for(let i=0;i<u.length;i+=8192)r+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(r)};
+const lng=n=>{const b=[];let x=n;do{b.push(x%256);x=Math.floor(x/256)}while(x>0);if(b[b.length-1]&128)b.push(0);return [0x8a,b.length,...b]};
+async function buildRpa(ents){const key=0x1badf00d,chunks=[],idx=[];let pos=34;
+ for(const e of ents){idx.push([e.name,pos,e.bytes.length]);chunks.push(e.bytes);pos+=e.bytes.length}
+ const pk=[0x80,2,0x7d,0x28];
+ for(const [n,o,l] of idx){const nb=enc.encode(n),L=nb.length;pk.push(0x58,L&255,L>>>8&255,L>>>16&255,L>>>24&255);for(const c of nb)pk.push(c);pk.push(0x5d,...lng((o^key)>>>0),...lng((l^key)>>>0),0x86,0x61)}
+ pk.push(0x75,0x2e);
+ const zc=await new Response(new Blob([new Uint8Array(pk)]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer();
+ const hd=enc.encode("RPA-3.0 "+pos.toString(16).padStart(16,"0")+" "+key.toString(16).padStart(8,"0")+"\n");
+ return new Blob([hd,...chunks,zc])}
+async function saveFile(P,name,folder,blob){await P.saveOpen({filename:name,folder});const u=new Uint8Array(await blob.arrayBuffer());for(let i=0;i<u.length;i+=786432)await P.saveWrite({data:b64u(u.subarray(i,i+786432))});await P.saveClose()}
+$("dl").onclick=async()=>{const outs=[],bySrc=new Map(),langN=LN[$("lang").value]||"indonesian",seen=new Set();let tlN=0;
+ try{msg("Membuat file…");
+  files.forEach(f=>{if(f.src){if(!bySrc.has(f.src))bySrc.set(f.src,[]);bySrc.get(f.src).push(f)}
+   else if(f.rpyc){const c=mergedTl(f,langN,seen);if(c){tlN++;outs.push({name:f.name.replace(/\.rpyc$/i,"")+"_tl.rpy",blob:new Blob([c])})}}
+   else outs.push({name:f.name.split("/").pop(),blob:new Blob([merged(f)])})});
+  for(const [src,list] of bySrc){const ents=[];
+   list.forEach(f=>{if(!f.items.some(x=>x.tr))return;
+    if(f.rpyc){const c=mergedTl(f,langN,seen);if(c){tlN++;ents.push({name:"tl/"+langN+"/"+f.inner.replace(/\.rpyc$/i,"").replace(/[\\/]/g,"_")+"_tl.rpy",data:c})}}
+    else ents.push({name:f.inner,data:merged(f)})});
+   if(ents.some(e=>e.name.startsWith("tl/")))ents.push({name:"zz_bahasa_"+langN+".rpy",data:`# Mengaktifkan bahasa terjemahan sebagai bawaan\ninit python:\n    config.default_language = "${langN}"\n`});
+   if(ents.length)outs.push({name:src.replace(/\.rpa$/i,"")+"_terjemahan.zip",blob:zip(ents)})}
+  if(!outs.length)throw new Error("belum ada baris yang diterjemahkan");
+  const d=new Date(),p=n=>String(n).padStart(2,"0"),folder="renpy translate/"+`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`,C=window.Capacitor;
+  if(C&&C.isNativePlatform&&C.isNativePlatform()){const P=getP();if(!P)throw new Error("plugin penyimpan tidak ditemukan di APK ini");for(const o of outs){msg("Menyimpan "+o.name+"…");await saveFile(P,o.name,folder,o.blob)}}
+  else for(const o of outs){const a=document.createElement("a");a.href=URL.createObjectURL(o.blob);a.download=o.name;a.click()}
+  files=[];render();$("pb").style.width="0";msg("✅ Tersimpan di Download/"+folder+" : "+outs.map(o=>o.name).join(", ")+". Siap mulai dari awal."+(bySrc.size?" Ekstrak ZIP ke folder game/ (gabung/timpa). JANGAN hapus file .rpa asli.":"")+(tlN&&!bySrc.size?" Taruh file *_tl.rpy di game/tl/"+langN+"/.":"")+(tlN&&bySrc.size?" Terjemahan dari .rpyc ada di tl/"+langN+"/ dan bahasanya diaktifkan lewat zz_bahasa_"+langN+".rpy.":""))}
+ catch(e){msg("Gagal menyimpan: "+(e.message||e)+" (pasang APK terbaru jika pesan menyebut 'not implemented')")}};
+/* ---- input ---- */
+const dr=$("drop");dr.onclick=()=>$("fin").click();$("fin").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};
+dr.ondragover=e=>{e.preventDefault();dr.classList.add("over")};dr.ondragleave=()=>dr.classList.remove("over");
+dr.ondrop=e=>{e.preventDefault();dr.classList.remove("over");addFiles([...e.dataTransfer.files])};
+</script></body></html>
