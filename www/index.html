@@ -346,11 +346,12 @@ $("dl").onclick=async()=>{const outs=[],bySrc=new Map(),langN=LN[$("lang").value
    if(ents.some(e=>e.name.startsWith("tl/")))ents.push({name:"zz_bahasa_"+langN+".rpy",data:`# Mengaktifkan bahasa terjemahan sebagai bawaan\ninit python:\n    config.default_language = "${langN}"\n`});
    if(ents.length)outs.push({name:src.replace(/\.rpa$/i,"")+"_terjemahan.zip",blob:zip(ents)})}
   if(!outs.length)throw new Error("belum ada baris yang diterjemahkan");
+  if(tlN&&!bySrc.size)outs.push({name:"zz_bahasa_"+langN+".rpy",blob:new Blob([`# Mengaktifkan bahasa terjemahan sebagai bawaan\ninit python:\n    config.default_language = "${langN}"\n`])});
   {const used=new Set();outs.forEach(o=>{let n=o.name,i=2;while(used.has(n)){n=o.name.replace(/(\.[^.]+)$/,"_"+i+"$1");i++}used.add(n);o.name=n})}
   const d=new Date(),p=n=>String(n).padStart(2,"0"),folder="renpy translate/"+`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`,C=window.Capacitor;
   if(C&&C.isNativePlatform&&C.isNativePlatform()){const P=getP();if(!P)throw new Error("plugin penyimpan tidak ditemukan di APK ini");for(const o of outs){msg("Menyimpan "+o.name+"…");await saveFile(P,o.name,folder,o.blob)}}
   else for(const o of outs){const a=document.createElement("a");a.href=URL.createObjectURL(o.blob);a.download=o.name;a.click()}
-  files=[];render();$("pb").style.width="0";msg("✅ Tersimpan di Download/"+folder+" : "+outs.map(o=>o.name).join(", ")+". Siap mulai dari awal."+(bySrc.size?" Ekstrak ZIP ke folder game/ (gabung/timpa). JANGAN hapus file .rpa asli.":"")+(tlN&&!bySrc.size?" Taruh file *_tl.rpy di game/tl/"+langN+"/.":"")+(tlN&&bySrc.size?" Terjemahan dari .rpyc ada di tl/"+langN+"/ dan bahasanya diaktifkan lewat zz_bahasa_"+langN+".rpy.":""))}
+  files=[];render();$("pb").style.width="0";msg("✅ Tersimpan di Download/"+folder+" : "+outs.map(o=>o.name).join(", ")+". Siap mulai dari awal."+(bySrc.size?" Ekstrak ZIP ke folder game/ (gabung/timpa). JANGAN hapus file .rpa asli.":"")+(tlN&&!bySrc.size?" Taruh semua *_tl.rpy di game/tl/"+langN+"/ , dan zz_bahasa_"+langN+".rpy langsung di folder game/ (bukan di dalam tl).":"")+(tlN&&bySrc.size?" Terjemahan dari .rpyc ada di tl/"+langN+"/ dan bahasanya diaktifkan lewat zz_bahasa_"+langN+".rpy.":""))}
  catch(e){msg("Gagal menyimpan: "+(e.message||e)+" (pasang APK terbaru jika pesan menyebut 'not implemented')")}};
 /* ---- input ---- */
 const dr=$("drop");dr.onclick=()=>$("fin").click();$("fin").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};
