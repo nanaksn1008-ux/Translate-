@@ -51,10 +51,6 @@ select{background:var(--in);border:1px solid var(--bd);border-radius:10px;paddin
 <div class="card">
  <div class="drop" id="drop">📂 Ketuk atau seret file <b>.rpy</b> / <b>.rpyc</b> / <b>.rpa</b> ke sini</div>
  <input type="file" id="fin" multiple hidden>
- <input type="file" id="fdir" webkitdirectory hidden>
- <input type="file" id="fmulti" multiple hidden>
- <div class="row" style="margin-top:10px"><button class="btn ghost" id="pickdir">📁 Pilih folder</button>
-  <label>Nama folder simpan <input id="fname" placeholder="game" style="width:120px"></label></div>
  <div id="files"></div>
 </div>
 <div class="card">
@@ -338,11 +334,12 @@ const fixq=s=>s.replace(/\r?\n/g,"\\n").replace(/(?<!\\)"/g,'\\"');
 function mergedTl(f,lang,seen){const o=[`# Dibuat oleh Ren'Py Translator dari ${f.name}`,`translate ${lang} strings:`];let n=0;
  f.items.forEach(x=>{if(!x.tr||seen.has(x.t))return;seen.add(x.t);o.push("",`    old "${x.t}"`,`    new "${fixq(x.tr)}"`);n++});
  return n?o.join("\n")+"\n":null}
+const ZZ=l=>`# Mengaktifkan bahasa terjemahan sebagai bawaan\ninit python:\n    config.default_language = "${l}"\n`;
 async function saveFile(P,name,folder,blob){await P.saveOpen({filename:name,folder});const u=new Uint8Array(await blob.arrayBuffer());for(let i=0;i<u.length;i+=786432)await P.saveWrite({data:b64u(u.subarray(i,i+786432))});await P.saveClose()}
-$("dl").onclick=async()=>{const outs=[],bySrc=new Map(),langN=LN[$("lang").value]||"indonesian",seen=new Set();let tlN=0;
+$("dl").onclick=async()=>{const outs=[],bySrc=new Map(),langN=LN[$("lang").value]||"indonesian",seen=new Set();let tlN=0,tlSolo=0;
  try{msg("Membuat file…");
   files.forEach(f=>{if(f.src){if(!bySrc.has(f.src))bySrc.set(f.src,[]);bySrc.get(f.src).push(f)}
-   else if(f.rpyc){const c=mergedTl(f,langN,seen);if(c){tlN++;outs.push({name:f.name.replace(/\.rpyc$/i,"")+"_tl.rpy",blob:new Blob([c])})}}
+   else if(f.rpyc){const c=mergedTl(f,langN,seen);if(c){tlN++;tlSolo++;outs.push({name:f.name.replace(/\.rpyc$/i,"")+"_tl.rpy",blob:new Blob([c])})}}
    else outs.push({name:f.name.split("/").pop(),blob:new Blob([merged(f)])})});
   for(const [src,list] of bySrc){const ents=[];
    list.forEach(f=>{if(!f.items.some(x=>x.tr))return;
@@ -350,25 +347,15 @@ $("dl").onclick=async()=>{const outs=[],bySrc=new Map(),langN=LN[$("lang").value
     else ents.push({name:f.inner,data:merged(f)})});
    if(ents.some(e=>e.name.startsWith("tl/")))ents.push({name:"zz_bahasa_"+langN+".rpy",data:`# Mengaktifkan bahasa terjemahan sebagai bawaan\ninit python:\n    config.default_language = "${langN}"\n`});
    if(ents.length)outs.push({name:src.replace(/\.rpa$/i,"")+"_terjemahan.zip",blob:zip(ents)})}
+  if(tlSolo)outs.push({name:"zz_bahasa_"+langN+".rpy",blob:new Blob([ZZ(langN)])});
   if(!outs.length)throw new Error("belum ada baris yang diterjemahkan");
-  const d=new Date(),p=n=>String(n).padStart(2,"0"),dn=$("fname").value.trim().replace(/[\\/:*?"<>|]/g,"_"),folder="renpy translate/"+(dn||`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`),C=window.Capacitor;
+  const d=new Date(),p=n=>String(n).padStart(2,"0"),folder="renpy translate/"+`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`,C=window.Capacitor;
   if(C&&C.isNativePlatform&&C.isNativePlatform()){const P=getP();if(!P)throw new Error("plugin penyimpan tidak ditemukan di APK ini");for(const o of outs){msg("Menyimpan "+o.name+"…");await saveFile(P,o.name,folder,o.blob)}}
   else for(const o of outs){const a=document.createElement("a");a.href=URL.createObjectURL(o.blob);a.download=o.name;a.click()}
-  files=[];render();$("pb").style.width="0";msg("✅ Tersimpan di Download/"+folder+" : "+outs.map(o=>o.name).join(", ")+". Siap mulai dari awal."+(bySrc.size?" Ekstrak ZIP ke folder game/ (gabung/timpa). JANGAN hapus file .rpa asli.":"")+(tlN&&!bySrc.size?" Taruh file *_tl.rpy di game/tl/"+langN+"/.":"")+(tlN&&bySrc.size?" Terjemahan dari .rpyc ada di tl/"+langN+"/ dan bahasanya diaktifkan lewat zz_bahasa_"+langN+".rpy.":""))}
+  files=[];render();$("pb").style.width="0";msg("✅ Tersimpan di Download/"+folder+" : "+outs.map(o=>o.name).join(", ")+". Siap mulai dari awal."+(bySrc.size?" Ekstrak ZIP ke folder game/ (gabung/timpa). JANGAN hapus file .rpa asli.":"")+(tlSolo?" Taruh *_tl.rpy di game/tl/"+langN+"/ dan zz_bahasa_"+langN+".rpy di game/.":"")+(tlN>tlSolo?" Terjemahan dari .rpyc dalam .rpa ada di tl/"+langN+"/ dan bahasanya diaktifkan lewat zz_bahasa_"+langN+".rpy di dalam ZIP.":""))}
  catch(e){msg("Gagal menyimpan: "+(e.message||e)+" (pasang APK terbaru jika pesan menyebut 'not implemented')")}};
 /* ---- input ---- */
 const dr=$("drop");dr.onclick=()=>$("fin").click();$("fin").onchange=e=>{addFiles([...e.target.files]);e.target.value=""};
 dr.ondragover=e=>{e.preventDefault();dr.classList.add("over")};dr.ondragleave=()=>dr.classList.remove("over");
 dr.ondrop=e=>{e.preventDefault();dr.classList.remove("over");addFiles([...e.dataTransfer.files])};
-const isNative=()=>{const C=window.Capacitor;return !!(C&&C.isNativePlatform&&C.isNativePlatform())};
-$("pickdir").onclick=()=>$(isNative()?"fmulti":"fdir").click();
-const dirPick=e=>{const l=[...e.target.files];e.target.value="";if(!l.length)return;
- const rp=l[0].webkitRelativePath||"";if(rp.includes("/"))$("fname").value=rp.split("/")[0];
- else{const fn=$("fname");if(!fn.value.trim()){let last="";try{last=localStorage.getItem("lastFname")||""}catch(_){}fn.value=last}
-  setTimeout(()=>{fn.focus();fn.select()},300);msg("📝 Nama folder tidak terbaca otomatis. Cek/ketik nama folder yang kamu pilih di kolom 'Nama folder simpan' (contoh: auroraevs).")}
- try{if($("fname").value.trim())localStorage.setItem("lastFname",$("fname").value.trim())}catch(_){}
- const ok=l.filter(f=>/\.(rpy|rpyc|rpa)$/i.test(f.name)&&!/(^|\/)tl\//i.test(f.webkitRelativePath||""));
- if(!ok.length){msg("Tidak ada file .rpy/.rpyc/.rpa di folder itu.");return}
- addFiles(ok)};
-$("fdir").onchange=dirPick;$("fmulti").onchange=dirPick;
 </script></body></html>
